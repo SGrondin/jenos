@@ -1,0 +1,19 @@
+(library
+  (name discord)
+  (libraries
+    cohttp-lwt-unix
+    core_kernel
+    lwt
+    lwt.unix
+    ppx_deriving_yojson.runtime
+    yojson
+    websocket
+    websocket-lwt-unix
+  )
+  (preprocess (pps
+    ppx_jane
+    lwt_ppx
+    ppx_deriving.show
+    ppx_deriving_yojson
+  ))
+)

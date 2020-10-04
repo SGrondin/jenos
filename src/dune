@@ -1,0 +1,13 @@
+(executable
+  (name app)
+  (libraries
+    discord
+    core
+    lwt
+  )
+  (preprocess (pps
+    ppx_jane
+    lwt_ppx
+  ))
+  (modes exe)
+)
