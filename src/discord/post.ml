@@ -1,7 +1,10 @@
 open! Core_kernel
-open Cohttp
-open Cohttp_lwt_unix
+open! Cohttp
+open! Cohttp_lwt_unix
 module Body = Cohttp_lwt.Body
+
+let previous = ref (Int64.of_int 0)
+let cooldown = Int64.(5L * 60L * 1_000_000_000L)
 
 module Payload = struct
   type t = {
@@ -9,26 +12,30 @@ module Payload = struct
     nonce: string;
     tts: bool;
   }
-  [@@deriving sexp, yojson]
+  [@@deriving sexp, fields, to_yojson]
 end
 
-let send ~channel_id ~content =
-  let body =
-    let nonce = Time_now.nanoseconds_since_unix_epoch () |> Int63.to_string in
-    Payload.{ content; nonce; tts = false }
-    |> Payload.to_yojson
-    |> Yojson.Safe.to_string
-    |> Body.of_string
-  in
-  let headers = Header.add Rest.headers "content-type" "application/json" in
-  let uri = Rest.make_uri ["channels"; channel_id; "messages"] in
-  let%lwt res, res_body = Client.post ~headers ~body uri in
-  let status = Response.status res in
-  let%lwt body_str = Body.to_string res_body in
-  print_endline body_str;
-  begin match Code.code_of_status status with
-  | 200 ->
-    Lwt.return_unit
-  | _ ->
-    failwithf "Invalid HTTP response (%s)" (Code.string_of_status status) ()
+let can_send () =
+  let open Int64 in
+  let now = Time_now.nanoseconds_since_unix_epoch () |> Int63.to_int64 in
+  begin match now > (!previous + cooldown) with
+  | true ->
+    previous := now;
+    true
+  | false -> false
   end
+
+let send ~channel_id ~content =
+  if can_send () then begin
+    let body =
+      let nonce = Time_now.nanoseconds_since_unix_epoch () |> Int63.to_string in
+      { content; nonce; tts = false }
+      |> Payload.to_yojson
+      |> Yojson.Safe.to_string
+      |> Body.of_string
+    in
+    let headers = Header.add Rest.headers "content-type" "application/json" in
+    let uri = Rest.make_uri ["channels"; channel_id; "messages"] in
+    (* prev *)
+    Rest.call ~headers ~body ~f:(fun _ -> ()) `POST uri
+  end else Lwt_io.printl "⏳ Waiting until we can send again"

@@ -3,7 +3,8 @@ open! Cohttp
 open! Cohttp_lwt_unix
 module Body = Cohttp_lwt.Body
 
-let token = "NzYxOTgwNjI4MDQ4NTQzNzU1.X3ifwg.G8Ebn0kkIXMmrGjySDTmyfrwZHA"
+let token = Env.get "TOKEN"
+
 let name = "Camlbot"
 let headers = Header.of_list [
     "Authorization", sprintf "Bot %s" token;
@@ -29,3 +30,16 @@ let make_uri ?(uri = base_uri) ll =
   ("api" :: "v8" :: ll)
   |> String.concat ~sep:"/"
   |> Uri.with_path uri
+
+let call ~headers ?body ~f meth uri =
+  let%lwt res, res_body = Client.call ~headers ?body meth uri in
+  let status = Response.status res in
+  let%lwt body_str = Body.to_string res_body in
+  print_endline body_str;
+  begin match Code.code_of_status status with
+  | 200 ->
+    let json = Yojson.Safe.from_string body_str in
+    Lwt.return (f json)
+  | _ ->
+    failwithf "Invalid HTTP response (%s)" (Code.string_of_status status) ()
+  end

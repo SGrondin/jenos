@@ -8,21 +8,28 @@ let () = Lwt.async_exception_hook := (fun ex ->
     ()
   )
 
-let main () =
+let sleep_random () =
+  let%lwt () = Lwt_io.printl "⏳ Reconnecting soon" in
+  let%lwt () = Random.float_range 2.0 5.0 |> Lwt_unix.sleep in
+  Lwt_io.printl "🌐 Reconnecting..."
+
+let rec main state =
   let%lwt res = Discord.Gateway.get () in
-  let%lwt () =
-    [%sexp_of: Discord.Gateway.response] res
-    |> Sexp.to_string_hum
-    |> Lwt_io.printl
-  in
-  let rec run url =
-    Lwt.catch (fun () -> Discord.Ws.connect url)
-      (function
-      | Discord.Router.Reconnect -> run url
-      | exn -> raise exn
-      )
-  in
-  run res.url
+  let%lwt () = [%sexp_of: Discord.Gateway.response] res |> Sexp.to_string |> Lwt_io.printl in
+  Lwt.catch (fun () -> Discord.Ws.connect state res.url)
+    (function
+    | Discord.State.Resume state ->
+      let%lwt () = sleep_random () in
+      main state
+    | Discord.State.Reconnect ->
+      let%lwt () = sleep_random () in
+      main (Discord.State.initial ())
+    | exn ->
+      let%lwt () = Lwt_io.eprintlf "❌ Error in main loop: %s" (Exn.to_string exn) in
+      let%lwt () = sleep_random () in
+      main (Discord.State.initial ())
+    )
 
 let () =
-  Lwt_main.run @@ main ()
+  try Lwt_main.run @@ main (Discord.State.initial ())
+  with Exit -> print_endline "Exit"

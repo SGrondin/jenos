@@ -2,50 +2,72 @@ open! Core_kernel
 open Websocket
 open Websocket_lwt_unix
 
-let connect uri : unit Lwt.t =
+let shutdown = ref None
+let make_shutdown send () =
+  Lwt_main.at_exit (fun () ->
+    Lwt_unix.with_timeout 1.0 (fun () -> send @@ Frame.close 1000)
+  );
+  raise Exit
+
+let _sigint = Lwt_unix.on_signal Sys.sigint (fun _ -> Option.call () ~f:!shutdown)
+let _sigterm = Lwt_unix.on_signal Sys.sigterm (fun _ -> Option.call () ~f:!shutdown)
+
+let handle send state = function
+| Frame.{ opcode = Ping; _ } ->
+  let%lwt () = send @@ Frame.create ~opcode:Frame.Opcode.Pong () in
+  Lwt.return state
+
+| Frame.{ opcode = Close; _ } ->
+  let%lwt () = send @@ Frame.close 1000 in
+  raise (State.Resume state)
+
+| Frame.{ opcode = Pong; _ } ->
+  Lwt.return state
+
+| Frame.{ opcode = Text; content; _ }
+| Frame.{ opcode = Binary; content; _ } ->
+  let%lwt () = Lwt_io.printlf "<<< %s" content in
+  Message.of_string (State.seq state) content
+  |> Router.handle send state
+
+| frame ->
+  let%lwt () = send @@ Frame.close 0 in
+  failwithf "Unhandled frame: %s" (Frame.show frame) ()
+
+let connect state uri : unit Lwt.t =
   let uri =
     begin match Uri.scheme uri with
-    | Some "ws" -> Uri.with_scheme uri (Some "http")
+    | None
     | Some "wss" -> Uri.with_scheme uri (Some "https")
-    | scheme -> failwithf "Invalid scheme in WS connect: %s" (Option.value ~default:"" scheme) ()
+    | Some "ws" -> Uri.with_scheme uri (Some "http")
+    | Some x -> failwithf "Invalid scheme in WS connect: %s" x ()
     end
-    |> (fun u -> Uri.add_query_params u ["v", ["8"]; "encoding", ["json"]])
+    |> Fn.flip Uri.add_query_params ["v", ["8"]; "encoding", ["json"]]
   in
 
-  let%lwt endp = Resolver_lwt.resolve_uri ~uri Resolver_lwt_unix.system in
   let%lwt recv, send =
-    let open Conduit_lwt_unix in
-    let%lwt client = endp_to_client ~ctx:default_ctx endp in
-    with_connection ~ctx:default_ctx client uri
+    let%lwt endp = Resolver_lwt.resolve_uri ~uri Resolver_lwt_unix.system in
+    let ctx = Conduit_lwt_unix.default_ctx in
+    let%lwt client = Conduit_lwt_unix.endp_to_client ~ctx endp in
+    with_connection ~ctx client uri
   in
 
-  let react (fr : Frame.t) =
-    begin match fr.opcode with
-    | Frame.Opcode.Ping ->
-      print_endline "!!! PING";
-      send @@ Frame.create ~opcode:Frame.Opcode.Pong ()
+  shutdown := Some (make_shutdown send);
 
-    | Frame.Opcode.Close ->
-      let%lwt () = send @@ Frame.close 1000 in
-      Lwt.fail Exit
-
-    | Frame.Opcode.Pong ->
-      print_endline "!!! PONG";
-      Lwt.return_unit
-
-    | Frame.Opcode.Text
-    | Frame.Opcode.Binary ->
-      let%lwt () = Lwt_io.printlf "<<< %s <<<" fr.content in
-      let message = Message.of_string fr.content in
-      Router.handle send message
-
-    | _ ->
-      let%lwt () = send @@ Frame.close 1002 in
-      raise Exit
-    end
+  let rec loop state =
+    let%lwt updated = Lwt.catch (fun () ->
+        let%lwt frame = recv () in
+        handle send state frame
+      ) (fun exn ->
+        Option.iter (State.heartbeat state) ~f:State.stop_heartbeat;
+        let%lwt () = Lwt.pick [
+            Lwt_unix.sleep 1.0;
+            send @@ Frame.close 1001;
+          ]
+        in
+        raise exn
+      )
+    in
+    loop updated
   in
-  let rec react_forever () =
-    let open Lwt.Infix in
-    recv () >>= react >>= react_forever
-  in
-  react_forever ()
+  loop state
