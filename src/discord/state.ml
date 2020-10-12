@@ -37,7 +37,7 @@ type t =
 | Connected of {
     heartbeat: heartbeat;
     session_id: string;
-    tracker: Events.Voice_state_update.t String.Map.t;
+    tracker: String.Set.t;
   }
 [@@deriving sexp]
 
@@ -64,28 +64,36 @@ let received_ready ~session_id = function
 | After_hello heartbeat -> Connected {
     heartbeat;
     session_id;
-    tracker = String.Map.empty;
+    tracker = String.Set.empty;
   }
 | (Starting _ as x)
 | (Connected _ as x) ->
   failwithf "Invalid state transition to_connected: %s" (sexp_of_t x |> Sexp.to_string) ()
 
-let track_user ~key ~data = function
-| Connected ({ tracker; _ } as inner) ->
-  Connected { inner with tracker = String.Map.set ~key ~data tracker }
-| (Starting _ as x)
-| (After_hello _ as x) ->
-  failwithf "Invalid state transition set: %s" (sexp_of_t x |> Sexp.to_string) ()
+module Voice = struct
+  let track_user ~key = function
+  | Connected ({ tracker; _ } as inner) ->
+    Connected { inner with tracker = String.Set.add tracker key }
+  | (Starting _ as x)
+  | (After_hello _ as x) ->
+    failwithf "Invalid state transition track_user: %s" (sexp_of_t x |> Sexp.to_string) ()
 
-let forget_user ~key = function
-| Connected ({ tracker; _ } as inner) ->
-  Connected { inner with tracker = String.Map.remove tracker key }
-| (Starting _ as x)
-| (After_hello _ as x) ->
-  failwithf "Invalid state transition set: %s" (sexp_of_t x |> Sexp.to_string) ()
+  let forget_user ~key = function
+  | Connected ({ tracker; _ } as inner) ->
+    Connected { inner with tracker = String.Set.remove tracker key }
+  | (Starting _ as x)
+  | (After_hello _ as x) ->
+    failwithf "Invalid state transition forget_user: %s" (sexp_of_t x |> Sexp.to_string) ()
 
+  let replace_all tracker = function
+  | Connected inner ->
+    Connected { inner with tracker }
+  | (Starting _ as x)
+  | (After_hello _ as x) ->
+    failwithf "Invalid state transition forget_user: %s" (sexp_of_t x |> Sexp.to_string) ()
+end
 let size = function
-| Connected { tracker; _ } -> String.Map.length tracker
+| Connected { tracker; _ } -> String.Set.length tracker
 | (Starting _ as x)
 | (After_hello _ as x) ->
   failwithf "Invalid state transition size: %s" (sexp_of_t x |> Sexp.to_string) ()

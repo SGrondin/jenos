@@ -15,4 +15,4 @@ type t = {
   premium_type: int option [@default None];
   public_flags: int option [@default None];
 }
-[@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+[@@deriving sexp, compare, fields, of_yojson { exn = true; strict = false }]

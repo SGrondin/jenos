@@ -19,18 +19,30 @@ module Ready = struct
 end
 
 module Voice_state_update = struct
-  type member = {
-    user: User.t option [@default None];
-    nick: string option;
-    roles: string list;
-  }
-  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
   type t = {
     guild_id: string option [@default None];
     channel_id: string option;
     user_id: string;
-    member: member option [@default None];
+    member: Channel.member option [@default None];
     session_id: string;
+  }
+  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+end
+
+module Guild_create = struct
+  type voice_state = {
+    user_id: string;
+    session_id: string;
+    channel_id: string option;
+  }
+  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+
+  type t = {
+    id: string;
+    name: string;
+    member_count: int option [@default None];
+    members: Channel.member list option [@default None];
+    voice_states: voice_state list option [@default None];
   }
   [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
 end

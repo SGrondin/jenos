@@ -1,11 +1,5 @@
 open! Core_kernel
 
-let t0 =
-  let open Int63 in
-  Time_now.nanoseconds_since_unix_epoch () / (of_int 1_000_000)
-  (* |> (fun x -> x - (of_int64_exn 1_420_070_400_000L)) *)
-  |> to_int64
-
 module Identify = struct
   type connection = {
     os: string [@key "$os"];
@@ -13,31 +7,23 @@ module Identify = struct
     device: string [@key "$device"];
   }
   [@@deriving sexp, fields, to_yojson]
-  type activity_type =
+  type activity =
   | Game of string
   | Streaming of string
   | Listening of string
-  | Custom of { emoji: string; name: string }
   | Competing of string
   [@@deriving sexp]
-  type activity = {
-    type_: activity_type [@key "type"];
-    created_at: Int64.t;
-  }
-  [@@deriving sexp, fields]
   let activity_to_yojson activity : Yojson.Safe.t =
-    let name, type_ = begin match activity.type_ with
-    | Game s -> (sprintf "Playing %s" s), 0
-    | Streaming s -> (sprintf "Streaming %s" s), 1
-    | Listening s -> (sprintf "Listening to %s" s), 2
-    | Custom { emoji; name } -> (sprintf ":%s: %s" emoji name), 4
-    | Competing s -> (sprintf "Competing in %s" s), 5
+    let name, type_ = begin match activity with
+    | Game s -> s, 0
+    | Streaming s -> s, 1
+    | Listening s -> s, 2
+    | Competing s -> s, 5
     end
     in
     `Assoc [
       "name", `String name;
       "type", `Int type_;
-      "created_at", `Intlit (Int64.to_string activity.created_at);
     ]
 
   type presence = {

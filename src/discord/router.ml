@@ -3,7 +3,47 @@ open Websocket
 
 let vc_channel = Env.get "VC_CHANNEL"
 let text_channel = Env.get "TEXT_CHANNEL"
-let threshold = 2
+let line2 = "Looks like the party's getting started! @partypeople, time to stack up!"
+let line4 = "Cmon, we just need one more for a full stack!"
+
+type vc_change =
+(* Voice State Update *)
+| VSU of Channel.member option
+(* Guild Create *)
+| GC of Channel.member list
+
+let vc_member_change ~before ~after change =
+  let nick_opt opt =
+    Option.bind opt ~f:Channel.member_name
+    |> Option.value ~default:"❓"
+  in
+  let nick member =
+    Channel.member_name member
+    |> Option.value ~default:"❓"
+  in
+  let%lwt () = begin match change with
+  | VSU member when before < after -> Lwt_io.printlf "📈 %s" (nick_opt member)
+  | VSU member when before > after -> Lwt_io.printlf "📉 %s" (nick_opt member)
+  | VSU _
+  | GC [] -> Lwt.return_unit
+  | GC ll ->
+    List.map ll ~f:(fun m -> sprintf "⚡ %s" (nick m))
+    |> String.concat ~sep:"\n"
+    |> Lwt_io.printl
+  end
+  in
+  let%lwt () = Lwt_io.printlf "Current state: %d member%s" (after) (if after > 1 then "s" else "") in
+  if after > before
+  then begin match after with
+  | 2 ->
+    let%lwt () = Post.send ~channel_id:text_channel ~content:line2 in
+    Lwt_io.printlf "✅ Posted to <%s>" text_channel
+  | 4 ->
+    let%lwt () = Post.send ~channel_id:text_channel ~content:line4 in
+    Lwt_io.printlf "✅ Posted to <%s>" text_channel
+  | _ -> Lwt.return_unit
+  end
+  else Lwt.return_unit
 
 let handle send state : Message.Recv.t -> State.t Lwt.t = function
 | { op = Hello; d; _ } ->
@@ -23,19 +63,15 @@ let handle send state : Message.Recv.t -> State.t Lwt.t = function
         compress = false;
         presence = {
           since = None;
-          activities = Some [{
-              type_ = Commands.Identify.Custom {
-                  emoji = "dark_sunglasses";
-                  name = "party manager";
-                };
-              created_at = Commands.t0;
-            }];
+          activities = Some [
+              Commands.Identify.Game "Party Manager"
+            ];
           status = "online";
           afk = false;
         };
         guild_subscriptions = false;
-        (* GUILD_VOICE_STATES (1 << 7) and GUILD_MESSAGES (1 << 9) *)
-        intents = 1 lsl 7;
+        (* GUILD_VOICE_STATES (1 << 7) and GUILDS (1 << 0) *)
+        intents = 1 lsl 7 + 1 lsl 0;
       }
       |> Commands.Identify.to_message
     end
@@ -66,37 +102,50 @@ let handle send state : Message.Recv.t -> State.t Lwt.t = function
 | { op = Dispatch; t = Some "VOICE_STATE_UPDATE"; s = _; d } ->
   let vsu = Events.Voice_state_update.of_yojson_exn d in
   let key = vsu.user_id in
-  let nick =
-    let open Option.Monad_infix in
-    Option.first_some
-      (vsu.member >>= Events.Voice_state_update.nick)
-      (vsu.member >>= Events.Voice_state_update.user >>| User.username)
-    |> Option.value ~default:"❓"
-  in
   let before = State.size state in
-  let%lwt state = begin match vsu with
+  let state = begin match vsu with
   | { channel_id = Some channel_id; _ } when String.(=) channel_id vc_channel ->
     (* Target channel *)
-    State.track_user ~key ~data:vsu state |> Lwt.return
+    State.Voice.track_user ~key state
   | _ ->
     (* Disconnected or joined another channel *)
-    State.forget_user ~key state |> Lwt.return
+    State.Voice.forget_user ~key state
   end
   in
   let after = State.size state in
-  let%lwt () =
-    if before < after then Lwt_io.printlf "📈 %s" nick
-    else if before > after then  Lwt_io.printlf "📉 %s" nick
-    else Lwt.return_unit
+  let%lwt () = vc_member_change ~before ~after (VSU vsu.member) in
+  Lwt.return state
+
+| { op = Dispatch; t = Some "GUILD_CREATE"; s = _; d } ->
+  let before = State.size state in
+  let gc = Events.Guild_create.of_yojson_exn d in
+  let users_in_target_channel = begin match gc with
+  | { voice_states = None; _ } -> String.Set.empty
+  | { voice_states = Some ll; _ } ->
+    List.filter_map ll ~f:(function
+    | { channel_id = Some channel_id; user_id; _ } when String.(=) channel_id vc_channel ->
+      Some user_id
+    | _ -> None
+    )
+    |> String.Set.of_list
+  end
   in
-  let%lwt () =
-    if before < threshold && after >= threshold
-    then begin
-      let%lwt () = Post.send ~channel_id:text_channel ~content:"Oh shiiiit looks like the party's getting started 🎉" in
-      Lwt_io.printlf "✅ Posted to <%s>" text_channel
-    end
-    else Lwt.return_unit
+  let ids, members = begin match gc.members with
+  | None -> String.Set.empty, []
+  | Some members ->
+    List.fold members ~init:(String.Set.empty, []) ~f:(fun ((set, ll) as acc) -> function
+    | (Channel.{ user = Some { id; _ }; _ } as member)
+      when String.Set.mem users_in_target_channel id ->
+      if String.Set.mem set id
+      then acc
+      else (String.Set.add set id, (member :: ll))
+    | _ -> acc
+    )
+  end
   in
+  let state = State.Voice.replace_all ids state in
+  let after = State.size state in
+  let%lwt () = vc_member_change ~before ~after (GC members) in
   Lwt.return state
 
 | { op = Dispatch; t = Some "RESUMED"; s = _; d = _ } ->
