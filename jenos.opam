@@ -32,6 +32,4 @@ depends: [
 
   "websocket"
   "websocket-lwt-unix"
-
-  "utop"
 ]

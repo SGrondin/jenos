@@ -31,5 +31,10 @@ let rec main state =
     )
 
 let () =
-  try Lwt_main.run @@ main (Discord.State.initial ())
-  with Exit -> print_endline "Exit"
+  begin match Sys.get_argv () with
+  | [| _; "-h" |]
+  | [| _; "--help" |] -> ()
+  | _ ->
+    try Lwt_main.run @@ main (Discord.State.initial ())
+    with Exit -> print_endline "Exit"
+  end
