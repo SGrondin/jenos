@@ -51,7 +51,12 @@ let handle send state : Message.Recv.t -> State.t Lwt.t = function
   let%lwt () =
     begin match State.session_id state with
     | Some id ->
-      Commands.Resume.({ session_id = id; seq = !(State.seq state) } |> to_message)
+      Commands.Resume.{
+        token = Rest.token;
+        session_id = id;
+        seq = !(State.seq state);
+      }
+      |> Commands.Resume.to_message
     | None ->
       Commands.Identify.{
         token = Rest.token;

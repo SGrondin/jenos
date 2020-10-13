@@ -71,6 +71,7 @@ end
 
 module Resume = struct
   type t = {
+    token: string;
     session_id: string;
     seq: int option;
   }

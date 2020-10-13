@@ -65,7 +65,10 @@ let connect state uri : unit Lwt.t =
             send @@ Frame.close 1001;
           ]
         in
-        raise exn
+        begin match exn with
+        | End_of_file -> raise (State.Resume state)
+        | exn -> raise exn
+        end
       )
     in
     loop updated
