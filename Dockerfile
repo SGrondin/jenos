@@ -31,6 +31,6 @@ WORKDIR /app
 COPY --from=build /app/app.exe .
 COPY --from=build /app/lib ./lib/
 ENV LD_LIBRARY_PATH ./lib
-RUN TOKEN='' VC_CHANNEL='' TEXT_CHANNEL='' ./app.exe -h
+RUN TOKEN='' VC_CHANNEL='' TEXT_CHANNEL='' LINE2='' LINE4='' ./app.exe -h
 
 ENTRYPOINT [ "/app/app.exe" ]

@@ -3,8 +3,8 @@ open Websocket
 
 let vc_channel = Env.get "VC_CHANNEL"
 let text_channel = Env.get "TEXT_CHANNEL"
-let line2 = "Looks like the party's getting started! @partypeople, time to stack up!"
-let line4 = "Cmon, we just need one more for a full stack!"
+let line2 = Env.get "LINE2"
+let line4 = Env.get "LINE4"
 
 type vc_change =
 (* Voice State Update *)
