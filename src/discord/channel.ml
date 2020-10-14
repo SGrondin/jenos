@@ -32,7 +32,7 @@ type t = {
 
 type member = {
   user: User.t option [@default None];
-  nick: string option;
+  nick: string option [@default None];
   roles: string list;
 }
 [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
