@@ -29,8 +29,9 @@ RUN mkdir lib \
 FROM alpine:3.12
 WORKDIR /app
 COPY --from=build /app/app.exe .
+COPY --from=build /app/config .
 COPY --from=build /app/lib ./lib/
 ENV LD_LIBRARY_PATH ./lib
-RUN TOKEN='' VC_CHANNEL='' TEXT_CHANNEL='' LINE2='' LINE4='' ./app.exe -h
+RUN ./app.exe -h
 
 ENTRYPOINT [ "/app/app.exe" ]

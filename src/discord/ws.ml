@@ -12,7 +12,7 @@ let make_shutdown send () =
 let _sigint = Lwt_unix.on_signal Sys.sigint (fun _ -> Option.call () ~f:!shutdown)
 let _sigterm = Lwt_unix.on_signal Sys.sigterm (fun _ -> Option.call () ~f:!shutdown)
 
-let handle send state = function
+let handle config send state = function
 | Frame.{ opcode = Ping; _ } ->
   let%lwt () = send @@ Frame.create ~opcode:Frame.Opcode.Pong () in
   Lwt.return state
@@ -28,13 +28,34 @@ let handle send state = function
 | Frame.{ opcode = Binary; content; _ } ->
   let%lwt () = Lwt_io.printlf "<<< %s" content in
   Message.of_string (State.seq state) content
-  |> Router.handle send state
+  |> Router.handle config send state
 
 | frame ->
   let%lwt () = send @@ Frame.close 0 in
   failwithf "Unhandled frame: %s" (Frame.show frame) ()
 
-let connect state uri : unit Lwt.t =
+let rec event_loop config recv send state =
+  let%lwt updated = Lwt.catch (fun () ->
+      let%lwt frame = recv () in
+      handle config send state frame
+    ) (fun exn ->
+      Option.iter (State.heartbeat state) ~f:State.stop_heartbeat;
+      let%lwt () = Lwt.pick [
+          Lwt_unix.sleep 1.0;
+          send @@ Frame.close 1001;
+        ]
+      in
+      begin match exn with
+      | End_of_file ->
+        let%lwt () = Lwt_io.eprintl "🔌 Connection was lost." in
+        raise (State.Resume state)
+      | exn -> raise exn
+      end
+    )
+  in
+  event_loop config recv send updated
+
+let connect config state uri : unit Lwt.t =
   let uri =
     begin match Uri.scheme uri with
     | None
@@ -54,23 +75,4 @@ let connect state uri : unit Lwt.t =
 
   shutdown := Some (make_shutdown send);
 
-  let rec loop state =
-    let%lwt updated = Lwt.catch (fun () ->
-        let%lwt frame = recv () in
-        handle send state frame
-      ) (fun exn ->
-        Option.iter (State.heartbeat state) ~f:State.stop_heartbeat;
-        let%lwt () = Lwt.pick [
-            Lwt_unix.sleep 1.0;
-            send @@ Frame.close 1001;
-          ]
-        in
-        begin match exn with
-        | End_of_file -> raise (State.Resume state)
-        | exn -> raise exn
-        end
-      )
-    in
-    loop updated
-  in
-  loop state
+  event_loop config recv send state

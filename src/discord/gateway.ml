@@ -18,6 +18,6 @@ type response = {
 }
 [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
 
-let get () =
+let get ~token =
   let uri = Rest.make_uri ["gateway"; "bot"] in
-  Rest.call ~headers:Rest.headers ~f:response_of_yojson_exn `GET uri
+  Rest.call ~headers:(Rest.headers ~token) ~f:response_of_yojson_exn `GET uri

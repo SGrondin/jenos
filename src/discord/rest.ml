@@ -3,10 +3,9 @@ open! Cohttp
 open! Cohttp_lwt_unix
 module Body = Cohttp_lwt.Body
 
-let token = Env.get "TOKEN"
-
 let name = "Camlbot"
-let headers = Header.of_list [
+
+let headers ~token = Header.of_list [
     "Authorization", sprintf "Bot %s" token;
     "User-Agent", name;
   ]

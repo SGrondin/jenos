@@ -1,18 +1,13 @@
 open! Core_kernel
 open Websocket
 
-let vc_channel = Env.get "VC_CHANNEL"
-let text_channel = Env.get "TEXT_CHANNEL"
-let line2 = Env.get "LINE2"
-let line4 = Env.get "LINE4"
-
 type vc_change =
 (* Voice State Update *)
 | VSU of Channel.member option
 (* Guild Create *)
 | GC of Channel.member list
 
-let vc_member_change ~before ~after change =
+let vc_member_change config ~before ~after change =
   let nick_opt opt =
     Option.bind opt ~f:Channel.member_name
     |> Option.value ~default:"❓"
@@ -32,34 +27,35 @@ let vc_member_change ~before ~after change =
     |> Lwt_io.printl
   end
   in
+  let Config.{ token; text_channel; line2; line4; _ } = config in
   let%lwt () = Lwt_io.printlf "Current state: %d member%s" (after) (if after > 1 then "s" else "") in
   if after > before
   then begin match after with
   | 2 ->
-    let%lwt () = Post.send ~channel_id:text_channel ~content:line2 in
+    let%lwt () = Post.send ~token ~channel_id:text_channel ~content:line2 in
     Lwt_io.printlf "✅ Posted to <%s>" text_channel
   | 4 ->
-    let%lwt () = Post.send ~channel_id:text_channel ~content:line4 in
+    let%lwt () = Post.send ~token ~channel_id:text_channel ~content:line4 in
     Lwt_io.printlf "✅ Posted to <%s>" text_channel
   | _ -> Lwt.return_unit
   end
   else Lwt.return_unit
 
-let handle send state : Message.Recv.t -> State.t Lwt.t = function
+let handle (config : Config.t) send state : Message.Recv.t -> State.t Lwt.t = function
 | { op = Hello; d; _ } ->
   let hello = Events.Hello.of_yojson_exn d in
   let%lwt () =
     begin match State.session_id state with
     | Some id ->
       Commands.Resume.{
-        token = Rest.token;
+        token = config.token;
         session_id = id;
         seq = !(State.seq state);
       }
       |> Commands.Resume.to_message
     | None ->
       Commands.Identify.{
-        token = Rest.token;
+        token = config.token;
         properties = {
           os = "Linux";
           browser = Rest.name;
@@ -69,7 +65,7 @@ let handle send state : Message.Recv.t -> State.t Lwt.t = function
         presence = {
           since = None;
           activities = Some [
-              Commands.Identify.Game "Party Manager"
+              Option.value config.status ~default:(Commands.Identify.Game "Party Manager")
             ];
           status = "online";
           afk = false;
@@ -109,7 +105,7 @@ let handle send state : Message.Recv.t -> State.t Lwt.t = function
   let key = vsu.user_id in
   let before = State.size state in
   let state = begin match vsu with
-  | { channel_id = Some channel_id; _ } when String.(=) channel_id vc_channel ->
+  | { channel_id = Some channel_id; _ } when String.(=) channel_id config.vc_channel ->
     (* Target channel *)
     State.Voice.track_user ~key state
   | _ ->
@@ -118,7 +114,7 @@ let handle send state : Message.Recv.t -> State.t Lwt.t = function
   end
   in
   let after = State.size state in
-  let%lwt () = vc_member_change ~before ~after (VSU vsu.member) in
+  let%lwt () = vc_member_change config ~before ~after (VSU vsu.member) in
   Lwt.return state
 
 | { op = Dispatch; t = Some "GUILD_CREATE"; s = _; d } ->
@@ -128,7 +124,7 @@ let handle send state : Message.Recv.t -> State.t Lwt.t = function
   | { voice_states = None; _ } -> String.Set.empty
   | { voice_states = Some ll; _ } ->
     List.filter_map ll ~f:(function
-    | { channel_id = Some channel_id; user_id; _ } when String.(=) channel_id vc_channel ->
+    | { channel_id = Some channel_id; user_id; _ } when String.(=) channel_id config.vc_channel ->
       Some user_id
     | _ -> None
     )
@@ -150,7 +146,7 @@ let handle send state : Message.Recv.t -> State.t Lwt.t = function
   in
   let state = State.Voice.replace_all ids state in
   let after = State.size state in
-  let%lwt () = vc_member_change ~before ~after (GC members) in
+  let%lwt () = vc_member_change config ~before ~after (GC members) in
   Lwt.return state
 
 | { op = Dispatch; t = Some "RESUMED"; s = _; d = _ } ->

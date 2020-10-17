@@ -22,7 +22,7 @@ let can_send () =
   if b then previous := now;
   b
 
-let send ~channel_id ~content =
+let send ~token ~channel_id ~content =
   if can_send () then begin
     let body =
       let nonce = Time_now.nanoseconds_since_unix_epoch () |> Int63.to_string in
@@ -31,7 +31,7 @@ let send ~channel_id ~content =
       |> Yojson.Safe.to_string
       |> Body.of_string
     in
-    let headers = Header.add Rest.headers "content-type" "application/json" in
+    let headers = Header.add (Rest.headers ~token) "content-type" "application/json" in
     let uri = Rest.make_uri ["channels"; channel_id; "messages"] in
     Rest.call ~headers ~body ~f:(fun _ -> ()) `POST uri
   end else Lwt_io.printl "⏳ Waiting until we can send again"
