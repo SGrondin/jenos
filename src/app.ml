@@ -8,40 +8,17 @@ let () = Lwt.async_exception_hook := (fun ex ->
     ()
   )
 
-let sleep_random () =
-  let%lwt () = Lwt_io.printl "⏳ Reconnecting soon" in
-  let%lwt () = Random.float_range 2.0 5.0 |> Lwt_unix.sleep in
-  Lwt_io.printl "🌐 Reconnecting..."
-
-let rec event_loop (config : Discord.Config.t) state =
-  let%lwt res = Discord.Gateway.get ~token:config.token in
-  let%lwt () = [%sexp_of: Discord.Gateway.response] res |> Sexp.to_string |> Lwt_io.printl in
-  Lwt.catch (fun () -> Discord.Ws.connect config state res.url)
-    (function
-    | Discord.State.Resume state ->
-      let%lwt () = sleep_random () in
-      event_loop config state
-    | Discord.State.Reconnect ->
-      let%lwt () = sleep_random () in
-      event_loop config (Discord.State.initial ())
-    | exn ->
-      let%lwt () = Lwt_io.eprintlf "❌ Error in event_loop: %s" (Exn.to_string exn) in
-      let%lwt () = sleep_random () in
-      event_loop config (Discord.State.initial ())
-    )
-
 let get_print_config filename =
   let%lwt config = Lwt_io.with_file ~flags:Unix.[O_RDONLY; O_NONBLOCK] ~mode:Input filename (fun ic ->
       let%lwt str = Lwt_io.read ic in
-      Sexp.of_string_conv_exn str Discord.Config.t_of_sexp
-      |> Lwt.return
+      Yojson.Safe.from_string str |> Jenos.config_of_yojson_exn |> Lwt.return
     )
   in
-  let%lwt () = Lwt_io.printl (Discord.Config.sexp_of_t config |> Sexp.to_string_hum) in
+  let%lwt () = Lwt_io.printl (Jenos.show_config config) in
   Lwt.return config
 
 let () =
-  let default_filename = "config" in
+  let default_filename = "config.json" in
   try Lwt_main.run (
       begin match Sys.get_argv () with
       | [| _; "-h" |] | [| _; "-help" |] | [| _; "--help" |] ->
@@ -54,10 +31,11 @@ let () =
         let filename =
           if Array.length args >= 2
           then Array.get args 1
-          else "config"
+          else default_filename
         in
         let%lwt config = get_print_config filename in
-        event_loop config (Discord.State.initial ())
+        Discord.Config.(create ~token:config.token ~intents:[GUILDS; GUILD_VOICE_STATES] ())
+        |> Jenos.create_bot config
       end
     )
   with

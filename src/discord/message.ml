@@ -13,7 +13,8 @@ module Opcode = struct
   | Invalid_session
   | Hello
   | Heartbeat_ACK
-  [@@deriving sexp]
+  [@@deriving sexp, variants]
+  let to_name = Variants.to_name
 
   let to_yojson : t -> Yojson.Safe.t = function
   | Dispatch -> `Int 0
@@ -71,7 +72,7 @@ module Recv = struct
     s: int option;
     d: Yojson.Safe.t;
   }
-  [@@deriving sexp_of, fields, of_yojson { exn = true }]
+  [@@deriving sexp_of, fields, yojson { exn = true }]
 end
 
 module Send = struct
@@ -90,10 +91,3 @@ let of_string seq raw =
   let message = Yojson.Safe.from_string raw |> Recv.of_yojson_exn in
   Option.iter message.s ~f:(fun s -> seq := Some s);
   message
-
-let respond send message =
-  let open Websocket in
-  let content = Send.to_yojson message |> Yojson.Safe.to_string in
-  let%lwt () = Lwt_io.printlf ">>> %s" content in
-  Frame.create ~opcode:Frame.Opcode.Text ~content ()
-  |> send

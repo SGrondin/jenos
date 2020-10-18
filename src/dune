@@ -4,10 +4,13 @@
     discord
     core
     lwt
+    ppx_deriving_yojson.runtime
   )
   (preprocess (pps
     ppx_jane
     lwt_ppx
+    ppx_deriving_yojson
+    ppx_deriving.show
   ))
   (modes exe)
 )

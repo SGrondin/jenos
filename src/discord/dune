@@ -14,6 +14,7 @@
     ppx_jane
     lwt_ppx
     ppx_deriving.show
+    ppx_deriving.enum
     ppx_deriving_yojson
   ))
 )

@@ -7,12 +7,13 @@ module Identify = struct
     device: string [@key "$device"];
   }
   [@@deriving sexp, fields, to_yojson]
+
   type activity =
   | Game of string
   | Streaming of string
   | Listening of string
   | Competing of string
-  [@@deriving sexp]
+  [@@deriving sexp, show]
   let activity_to_yojson activity : Yojson.Safe.t =
     let name, type_ = begin match activity with
     | Game s -> s, 0
@@ -25,11 +26,31 @@ module Identify = struct
       "name", `String name;
       "type", `Int type_;
     ]
+  let activity_of_yojson = function
+  | `Assoc ["game", `String s] -> Ok (Game s)
+  | `Assoc ["streaming", `String s] -> Ok (Streaming s)
+  | `Assoc ["listening", `String s] -> Ok (Listening s)
+  | `Assoc ["competing", `String s] -> Ok (Competing s)
+  | json -> Error (sprintf "Invalid bot status: %s" (Yojson.Safe.to_string json))
+
+  type status =
+  | Online
+  | DND
+  | Idle
+  | Invisible
+  | Offline
+  [@@deriving sexp]
+  let status_to_yojson = function
+  | Online -> `String "online"
+  | DND -> `String "dnd"
+  | Idle -> `String "idle"
+  | Invisible -> `String "invisible"
+  | Offline -> `String "offline"
 
   type presence = {
     since: Int64.t option;
     activities: activity list option;
-    status: string;
+    status: status;
     afk: bool;
   }
   [@@deriving sexp, fields, to_yojson]
