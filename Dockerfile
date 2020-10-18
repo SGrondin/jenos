@@ -29,7 +29,7 @@ RUN mkdir lib \
 FROM alpine:3.12
 WORKDIR /app
 COPY --from=build /app/app.exe .
-COPY --from=build /app/config .
+COPY --from=build /app/config.json .
 COPY --from=build /app/lib ./lib/
 ENV LD_LIBRARY_PATH ./lib
 RUN ./app.exe -h
