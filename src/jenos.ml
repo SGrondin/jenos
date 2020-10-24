@@ -2,14 +2,17 @@ open! Core_kernel
 
 open Discord
 
+let random_state = Random.State.make_self_init ()
+let () = Random.set_state random_state
+
 type config = {
   token: string;
   status: Commands.Identify.activity option [@default None];
-  line2: string;
-  line4: string;
+  line2: string array;
+  line4: string array;
   vc_channel: string;
   text_channel: string;
-} [@@deriving of_yojson { exn = true }, show]
+} [@@deriving of_yojson { exn = true }, sexp]
 
 type vc_change =
 (* Voice State Update *)
@@ -60,10 +63,10 @@ let vc_member_change { token; text_channel; line2; line4; _ } ~before ~after cha
   if after > before
   then begin match after with
   | 2 ->
-    let%lwt () = post_message ~token ~channel_id:text_channel ~content:line2 in
+    let%lwt () = post_message ~token ~channel_id:text_channel ~content:(Array.random_element_exn line2) in
     Lwt_io.printlf "✅ Posted to <%s>" text_channel
   | 4 ->
-    let%lwt () = post_message ~token ~channel_id:text_channel ~content:line4 in
+    let%lwt () = post_message ~token ~channel_id:text_channel ~content:(Array.random_element_exn line4) in
     Lwt_io.printlf "✅ Posted to <%s>" text_channel
   | _ -> Lwt.return_unit
   end
@@ -109,7 +112,6 @@ let create_bot config =
       (* VOICE_STATE_UPDATE *)
       | { op = Dispatch; t = Some "VOICE_STATE_UPDATE"; s = _; d } ->
         let before = String.Set.length tracker in
-        print_endline (Yojson.Safe.to_string d);
         let tracker, member = begin match Events.Voice_state_update.of_yojson_exn d with
         (* Target channel, not a bot *)
         | { channel_id = Some channel_id; user_id; member; _ }

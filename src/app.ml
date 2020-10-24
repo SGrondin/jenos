@@ -14,7 +14,7 @@ let get_print_config filename =
       Yojson.Safe.from_string str |> Jenos.config_of_yojson_exn |> Lwt.return
     )
   in
-  let%lwt () = Lwt_io.printl (Jenos.show_config config) in
+  let%lwt () = Lwt_io.printl (Jenos.sexp_of_config config |> Sexp.to_string_hum) in
   Lwt.return config
 
 let () =
