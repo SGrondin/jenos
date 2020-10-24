@@ -9,6 +9,9 @@ type 'a state = {
   user_state: 'a;
 }
 
+let close_timeout ?(timeout = 1.0) ?(code = 1000) send =
+  Lwt_unix.with_timeout timeout (fun () -> send @@ Frame.close code)
+
 let handle
     ~user_state_to_sexp ~before_handler ~after_handler
     (config : Config.t) send { internal_state; user_state } (msg : Message.Recv.t) =
@@ -40,8 +43,8 @@ let handle
           token = config.token;
           properties = {
             os = "Linux";
-            browser = Rest.name;
-            device = Rest.name;
+            browser = Rest.Call.name;
+            device = Rest.Call.name;
           };
           compress = false;
           presence = {
@@ -69,7 +72,7 @@ let handle
     Lwt.return internal_state
 
   | { op = Invalid_session; _ } ->
-    let%lwt () = Lwt_unix.with_timeout 1.0 (fun () -> send @@ Frame.close 1000) in
+    let%lwt () = close_timeout send in
     raise Reconnect
 
   | { op = Dispatch; t = Some "READY"; s = _; d } ->

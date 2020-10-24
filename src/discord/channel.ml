@@ -37,6 +37,10 @@ type member = {
 }
 [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
 
+let is_bot member_opt =
+  Option.Monad_infix.(member_opt >>= user >>= User.bot)
+  |> Option.value ~default:false
+
 let member_id = function
 | { user = Some { id; _ }; _ } -> Some id
 | _ -> None

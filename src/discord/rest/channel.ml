@@ -12,7 +12,7 @@ module Payload = struct
   [@@deriving sexp, fields, to_yojson]
 end
 
-let send ~token ~channel_id ~content =
+let create_message ~token ~channel_id ~content =
   let body =
     {
       content;
@@ -23,6 +23,6 @@ let send ~token ~channel_id ~content =
     |> Yojson.Safe.to_string
     |> Body.of_string
   in
-  let headers = Header.add (Rest.headers ~token) "content-type" "application/json" in
-  let uri = Rest.make_uri ["channels"; channel_id; "messages"] in
-  Rest.call ~headers ~body ~f:(fun _ -> ()) `POST uri
+  let headers = Header.add (Call.headers ~token) "content-type" "application/json" in
+  let uri = Call.make_uri ["channels"; channel_id; "messages"] in
+  Call.exec ~headers ~body ~f:(fun _ -> ()) `POST uri

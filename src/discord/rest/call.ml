@@ -30,7 +30,7 @@ let make_uri ?(uri = base_uri) ll =
   |> String.concat ~sep:"/"
   |> Uri.with_path uri
 
-let call ~headers ?body ~f meth uri =
+let exec ~headers ?body ~f meth uri =
   let%lwt res, res_body = Client.call ~headers ?body meth uri in
   let status = Response.status res in
   let%lwt body_str = Body.to_string res_body in

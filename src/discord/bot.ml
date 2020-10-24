@@ -11,13 +11,14 @@ module type S = sig
 
   val before_resuming : unit -> unit Lwt.t
   val before_reconnecting : unit -> unit Lwt.t
+  val on_connection_closed : unit -> unit Lwt.t
   val on_exn : exn -> unit Lwt.t
 
   val before_handler : respond:respond -> t -> Message.Recv.t -> t Lwt.t
   val after_handler : respond:respond -> t -> Message.Recv.t -> t Lwt.t
 end
 
-module Make (Argument : S) : sig
+module Make (User_state : S) : sig
   val start : Config.t -> unit Lwt.t
 end = struct
 
@@ -39,23 +40,27 @@ end = struct
     let%lwt () = send @@ Frame.create ~opcode:Frame.Opcode.Pong () in
     Lwt.return state
 
-  | Frame.{ opcode = Close; _ } ->
-    let%lwt () = Lwt_unix.with_timeout 1.0 (fun () -> send @@ Frame.close 1000) in
-    raise (Router.Resume (internal_state, Argument.sexp_of_t user_state))
+  | Frame.{ opcode = Close; extension; final; content } ->
+    let%lwt () =
+      Lwt_io.printlf "⚠️ Received a Close frame. extension: %d. final: %b. content: %s"
+        extension final content
+    in
+    let%lwt () = Router.close_timeout send in
+    raise (Router.Resume (internal_state, User_state.sexp_of_t user_state))
 
   | Frame.{ opcode = Pong; _ } ->
     Lwt.return state
 
   | Frame.{ opcode = Text; content; _ }
   | Frame.{ opcode = Binary; content; _ } ->
-    Message.of_string (Internal_state.seq internal_state) content
+    Message.Private.of_string (Internal_state.seq internal_state) content
     |> Router.handle config send state
-      ~before_handler:Argument.before_handler
-      ~after_handler:Argument.after_handler
-      ~user_state_to_sexp:Argument.sexp_of_t
+      ~before_handler:User_state.before_handler
+      ~after_handler:User_state.after_handler
+      ~user_state_to_sexp:User_state.sexp_of_t
 
   | frame ->
-    let%lwt () = Lwt_unix.with_timeout 1.0 (fun () -> send @@ Frame.close 1000) in
+    let%lwt () = Router.close_timeout send in
     failwithf "Unhandled frame: %s" (Frame.show frame) ()
 
   let rec event_loop config recv send (Router.{ internal_state; user_state } as state) =
@@ -64,11 +69,11 @@ end = struct
         handle config send state frame
       ) (fun exn ->
         Option.iter (Internal_state.heartbeat internal_state) ~f:Internal_state.stop_heartbeat;
-        let%lwt () = Lwt_unix.with_timeout 1.0 (fun () -> send @@ Frame.close 1001) in
+        let%lwt () = Router.close_timeout ~code:1001 send in
         begin match exn with
         | End_of_file ->
-          let%lwt () = Lwt_io.eprintl "🔌 Connection was closed." in
-          raise (Router.Resume (internal_state, Argument.sexp_of_t user_state))
+          let%lwt () = User_state.on_connection_closed () in
+          raise (Router.Resume (internal_state, User_state.sexp_of_t user_state))
         | exn -> raise exn
         end
       )
@@ -104,22 +109,22 @@ end = struct
   let blank_state () =
     Router.{
       internal_state = Internal_state.initial ();
-      user_state = Argument.initial ();
+      user_state = User_state.initial ();
     }
 
   let rec connection_loop (config : Config.t) state =
-    let%lwt res = Gateway.get ~token:config.token in
+    let%lwt res = Rest.Gateway.get ~token:config.token in
     Lwt.catch (fun () -> connect config state res.url)
       (function
       | Router.Resume (internal_state, sexp) ->
-        let user_state = Argument.t_of_sexp sexp in
-        let%lwt () = with_random_sleep Argument.before_resuming () in
+        let user_state = User_state.t_of_sexp sexp in
+        let%lwt () = with_random_sleep User_state.before_resuming () in
         connection_loop config Router.{ internal_state; user_state }
       | Router.Reconnect ->
-        let%lwt () = with_random_sleep Argument.before_reconnecting () in
+        let%lwt () = with_random_sleep User_state.before_reconnecting () in
         connection_loop config (blank_state ())
       | exn ->
-        let%lwt () = with_random_sleep Argument.on_exn exn in
+        let%lwt () = with_random_sleep User_state.on_exn exn in
         connection_loop config (blank_state ())
       )
 

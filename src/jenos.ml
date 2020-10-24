@@ -29,7 +29,7 @@ let can_send () =
 
 let post_message ~token ~channel_id ~content =
   if can_send ()
-  then Post.send ~token ~channel_id ~content
+  then Rest.Channel.create_message ~token ~channel_id ~content
   else Lwt_io.printl "⏳ Waiting until we can send again"
 
 let vc_member_change { token; text_channel; line2; line4; _ } ~before ~after change =
@@ -52,7 +52,11 @@ let vc_member_change { token; text_channel; line2; line4; _ } ~before ~after cha
     |> Lwt_io.printl
   end
   in
-  let%lwt () = Lwt_io.printlf "Current count: %d" after in
+  let%lwt () =
+    if after <> before
+    then Lwt_io.printlf "Current count: %d" after
+    else Lwt.return_unit
+  in
   if after > before
   then begin match after with
   | 2 ->
@@ -66,14 +70,14 @@ let vc_member_change { token; text_channel; line2; line4; _ } ~before ~after cha
   else Lwt.return_unit
 
 let create_bot config =
-  let module Bot = Ws.Make (struct
+  let module Bot = Bot.Make (struct
       type t = String.Set.t [@@deriving sexp]
 
       let initial () = String.Set.empty
 
       let before_resuming () = Lwt_io.printl "⏯️ Resuming..."
       let before_reconnecting () = Lwt_io.printl "🌐 Reconnecting..."
-
+      let on_connection_closed () = Lwt_io.eprintl "🔌 Connection was closed."
       let on_exn exn = Lwt_io.eprintlf "❌ Unexpected error: %s" (Exn.to_string exn)
 
       let before_handler ~respond:_ tracker : Message.Recv.t -> t Lwt.t = function
@@ -91,17 +95,20 @@ let create_bot config =
       | { op = Invalid_session; _ } ->
         let%lwt () = Lwt_io.eprintl "🔌 Session rejected, starting a new session..." in
         Lwt.return tracker
+
       | _ -> Lwt.return tracker
 
       let after_handler ~respond:_ tracker : Message.Recv.t -> t Lwt.t = function
       (* VOICE_STATE_UPDATE *)
       | { op = Dispatch; t = Some "VOICE_STATE_UPDATE"; s = _; d } ->
         let before = String.Set.length tracker in
+        print_endline (Yojson.Safe.to_string d);
         let tracker, member = begin match Events.Voice_state_update.of_yojson_exn d with
-        (* Target channel *)
-        | { channel_id = Some channel_id; user_id; member; _ } when String.(=) channel_id config.vc_channel ->
+        (* Target channel, not a bot *)
+        | { channel_id = Some channel_id; user_id; member; _ }
+          when (Channel.is_bot member |> not) && String.(=) channel_id config.vc_channel ->
           String.Set.add tracker user_id, member
-        (* Disconnected or joined another channel *)
+        (* Anything else *)
         | { user_id; member; _ } -> String.Set.remove tracker user_id, member
         end
         in
@@ -116,20 +123,18 @@ let create_bot config =
         let users_in_target_channel = begin match gc with
         | { voice_states = None; _ } -> String.Set.empty
         | { voice_states = Some ll; _ } ->
-          List.filter_map ll ~f:(function
+          List.fold ll ~init:String.Set.empty ~f:(fun acc -> function
           | { channel_id = Some channel_id; user_id; _ } when String.(=) channel_id config.vc_channel ->
-            Some user_id
-          | _ -> None
+            String.Set.add acc user_id
+          | _ -> acc
           )
-          |> String.Set.of_list
         end
         in
         let tracker, members = begin match gc.members with
         | None -> String.Set.empty, []
         | Some members ->
           List.fold members ~init:(String.Set.empty, []) ~f:(fun ((set, ll) as acc) -> function
-          | (Channel.{ user = Some { id; _ }; _ } as member)
-            when String.Set.mem users_in_target_channel id ->
+          | (Channel.{ user = Some { id; _ }; _ } as member) when String.Set.mem users_in_target_channel id ->
             if String.Set.mem set id
             then acc
             else (String.Set.add set id, (member :: ll))
