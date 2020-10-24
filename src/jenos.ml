@@ -71,34 +71,41 @@ let vc_member_change { token; text_channel; line2; line4; _ } ~before ~after cha
 
 let create_bot config =
   let module Bot = Bot.Make (struct
-      type t = String.Set.t [@@deriving sexp]
+      type t = {
+        tracker: String.Set.t;
+      } [@@deriving sexp]
 
-      let initial () = String.Set.empty
+      let initial () = { tracker = String.Set.empty }
 
       let before_resuming () = Lwt_io.printl "⏯️ Resuming..."
       let before_reconnecting () = Lwt_io.printl "🌐 Reconnecting..."
       let on_connection_closed () = Lwt_io.eprintl "🔌 Connection was closed."
       let on_exn exn = Lwt_io.eprintlf "❌ Unexpected error: %s" (Exn.to_string exn)
 
-      let before_handler ~respond:_ tracker : Message.Recv.t -> t Lwt.t = function
+      let before_handler ~respond:_ state : Message.Recv.t -> t Lwt.t = function
       (* READY *)
       | { op = Dispatch; t = Some "READY"; s = _; d } ->
         let%lwt () = Lwt_io.printlf "READY! %s" (Yojson.Safe.to_string d) in
-        Lwt.return tracker
+        Lwt.return state
+
+      (* RECONNECT *)
+      | { op = Reconnect; _ } ->
+        let%lwt () = Lwt_io.printl "⚠️ Received a Reconnect event." in
+        Lwt.return state
 
       (* RESUMED *)
       | { op = Dispatch; t = Some "RESUMED"; s = _; d = _ } ->
         let%lwt () = Lwt_io.printl "⏯️ Resumed" in
-        Lwt.return tracker
+        Lwt.return state
 
       (* INVALID_SESSION *)
       | { op = Invalid_session; _ } ->
         let%lwt () = Lwt_io.eprintl "🔌 Session rejected, starting a new session..." in
-        Lwt.return tracker
+        Lwt.return state
 
-      | _ -> Lwt.return tracker
+      | _ -> Lwt.return state
 
-      let after_handler ~respond:_ tracker : Message.Recv.t -> t Lwt.t = function
+      let after_handler ~respond:_ ({ tracker } as state) : Message.Recv.t -> t Lwt.t = function
       (* VOICE_STATE_UPDATE *)
       | { op = Dispatch; t = Some "VOICE_STATE_UPDATE"; s = _; d } ->
         let before = String.Set.length tracker in
@@ -114,7 +121,7 @@ let create_bot config =
         in
         let after = String.Set.length tracker in
         let%lwt () = vc_member_change config ~before ~after (VSU member) in
-        Lwt.return tracker
+        Lwt.return state
 
       (* GUILD_CREATE *)
       | { op = Dispatch; t = Some "GUILD_CREATE"; s = _; d } ->
@@ -144,10 +151,10 @@ let create_bot config =
         in
         let after = String.Set.length tracker in
         let%lwt () = vc_member_change config ~before ~after (GC members) in
-        Lwt.return tracker
+        Lwt.return state
 
       (* Other events *)
-      | _ -> Lwt.return tracker
+      | _ -> Lwt.return state
     end)
   in
   Bot.start

@@ -118,7 +118,7 @@ end = struct
       (function
       | Router.Resume (internal_state, sexp) ->
         let user_state = User_state.t_of_sexp sexp in
-        let%lwt () = with_random_sleep User_state.before_resuming () in
+        let%lwt () = User_state.before_resuming () in
         connection_loop config Router.{ internal_state; user_state }
       | Router.Reconnect ->
         let%lwt () = with_random_sleep User_state.before_reconnecting () in
