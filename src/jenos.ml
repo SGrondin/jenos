@@ -121,7 +121,7 @@ let create_bot config =
         in
         let after = String.Set.length tracker in
         let%lwt () = vc_member_change config ~before ~after (VSU member) in
-        Lwt.return state
+        Lwt.return { tracker }
 
       (* GUILD_CREATE *)
       | { op = Dispatch; t = Some "GUILD_CREATE"; s = _; d } ->
@@ -151,7 +151,7 @@ let create_bot config =
         in
         let after = String.Set.length tracker in
         let%lwt () = vc_member_change config ~before ~after (GC members) in
-        Lwt.return state
+        Lwt.return { tracker }
 
       (* Other events *)
       | _ -> Lwt.return state
