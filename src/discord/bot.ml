@@ -115,12 +115,12 @@ end = struct
         let user_state = User_state.t_of_sexp sexp in
         let%lwt () = User_state.before_resuming () in
         connection_loop config Router.{ internal_state; user_state }
-      | Router.Reconnect sexp ->
+      | Router.Restart sexp ->
         let user_state = User_state.t_of_sexp sexp in
         let%lwt () = User_state.before_reconnecting () in
         connection_loop config (blank_state ~user_state ())
       | exn ->
-        let%lwt () = Lwt_unix.sleep (Random.float_range 2.0 5.0) in
+        let%lwt () = Lwt_unix.sleep 5.0 in
         let%lwt () = User_state.on_exn exn in
         connection_loop config (blank_state ())
       )
