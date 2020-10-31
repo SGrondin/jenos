@@ -58,6 +58,7 @@ end = struct
       ~before_handler:User_state.before_handler
       ~after_handler:User_state.after_handler
       ~user_state_to_sexp:User_state.sexp_of_t
+      ~on_exn:User_state.on_exn
 
   | frame ->
     let%lwt () = Router.close_timeout send in
@@ -120,8 +121,8 @@ end = struct
         let%lwt () = User_state.before_reconnecting () in
         connection_loop config (blank_state ~user_state ())
       | exn ->
-        let%lwt () = Lwt_unix.sleep 5.0 in
         let%lwt () = User_state.on_exn exn in
+        let%lwt () = Lwt_unix.sleep 5.0 in
         connection_loop config (blank_state ())
       )
 

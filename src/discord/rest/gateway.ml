@@ -20,4 +20,4 @@ type response = {
 
 let get ~token =
   let uri = Call.make_uri ["gateway"; "bot"] in
-  Call.exec ~headers:(Call.headers ~token) ~f:response_of_yojson_exn `GET uri
+  Call.fetch ~headers:(Call.headers ~token) ~f:response_of_yojson_exn `GET uri

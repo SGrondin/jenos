@@ -36,7 +36,7 @@ let () =
         let%lwt config = get_print_config filename in
         Discord.Config.(create
             ~token:config.token
-            ~intents:[GUILDS; GUILD_VOICE_STATES]
+            ~intents:[GUILDS; GUILD_VOICE_STATES; GUILD_MESSAGES]
             ?activity:config.status
             ()
         )

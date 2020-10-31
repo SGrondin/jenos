@@ -5,32 +5,54 @@ open Discord
 let random_state = Random.State.make_self_init ()
 let () = Random.set_state random_state
 
-type lines = {
-  common: string array;
-  uncommon: string array;
-  rare: string array;
-} [@@deriving sexp, of_yojson { exn = true }]
+module Regex : sig
+  type t [@@deriving sexp_of, of_yojson]
+
+  val matching: t -> string -> bool
+end = struct
+  type t = Re.re * string
+
+  let sexp_of_t (_re, s) = Sexp.Atom s
+  let of_yojson = function
+  | `String s ->
+    Ok (Re.Perl.re ~opts:[`Caseless] s |> Re.Perl.compile, s)
+  | json -> Error (sprintf "Impossible to parse JSON %s into a regex type" (Yojson.Safe.to_string json))
+
+  let matching (re, _s) str = Re.execp re str
+end
+
+type reaction = {
+  regex: Regex.t;
+  emojis: string list;
+} [@@deriving sexp_of, of_yojson { exn = true }]
 
 type thresholds = {
   p_common: int;
   p_uncommon: int;
-}  [@@deriving sexp, of_yojson { exn = true }]
+} [@@deriving sexp_of, of_yojson { exn = true }]
+
+type lines = {
+  common: string array;
+  uncommon: string array;
+  rare: string array;
+} [@@deriving sexp_of, of_yojson { exn = true }]
 
 type config = {
   token: string;
   status: Commands.Identify.activity option [@default None];
+  reactions: reaction list;
   thresholds: thresholds;
   line2: lines;
   line4: lines;
   vc_channel: string;
   text_channel: string;
-} [@@deriving sexp, of_yojson { exn = true }]
+} [@@deriving sexp_of, of_yojson { exn = true }]
 
 type vc_change =
 (* Voice State Update *)
-| VSU of Channel.member option
+| VSU of Objects.Channel.member option
 (* Guild Create *)
-| GC of Channel.member list
+| GC of Objects.Channel.member list
 
 let latch_all = Latch.create ~cooldown:Int64.(20L * 60L * 1_000_000_000L)
 let latch_notif = Latch.create ~cooldown:Int64.(30L * 60L * 1_000_000_000L)
@@ -62,11 +84,11 @@ let pick_line { p_common; p_uncommon } lines =
 
 let vc_member_change { token; text_channel = channel_id; line2; line4; thresholds; _ } ~before ~after change =
   let nick_opt opt =
-    Option.bind opt ~f:Channel.member_name
+    Option.bind opt ~f:Objects.Channel.member_name
     |> Option.value ~default:"❓"
   in
   let nick member =
-    Channel.member_name member
+    Objects.Channel.member_name member
     |> Option.value ~default:"❓"
   in
   let%lwt () = begin match change with
@@ -142,7 +164,7 @@ let create_bot config =
         let tracker, member = begin match Events.Voice_state_update.of_yojson_exn d with
         (* Target channel, not a bot *)
         | { channel_id = Some channel_id; user_id; member; _ }
-          when (Channel.is_bot member |> not) && String.(=) channel_id config.vc_channel ->
+          when (Objects.Channel.is_bot member |> not) && String.(=) channel_id config.vc_channel ->
           String.Set.add tracker user_id, member
         (* Anything else *)
         | { user_id; member; _ } -> String.Set.remove tracker user_id, member
@@ -170,7 +192,7 @@ let create_bot config =
         | None -> String.Set.empty, []
         | Some members ->
           List.fold members ~init:(String.Set.empty, []) ~f:(fun ((set, ll) as acc) -> function
-          | (Channel.{ user = Some { id; _ }; _ } as member) when String.Set.mem users_in_target_channel id ->
+          | (Objects.Channel.{ user = Some { id; _ }; _ } as member) when String.Set.mem users_in_target_channel id ->
             if String.Set.mem set id
             then acc
             else (String.Set.add set id, (member :: ll))
@@ -181,6 +203,28 @@ let create_bot config =
         let after = String.Set.length tracker in
         let%lwt () = vc_member_change config ~before ~after (GC members) in
         Lwt.return { tracker }
+
+      (* MESSAGE_CREATE *)
+      | { op = Dispatch; t = Some "MESSAGE_CREATE"; s = _; d } ->
+        begin match Objects.Message.of_yojson_exn d with
+        | { id = message_id; type_ = DEFAULT; channel_id; content; _ } ->
+          let emojis =
+            List.filter_map config.reactions ~f:(function
+            | { regex; emojis } when Regex.matching regex content -> Some emojis
+            | _ -> None
+            )
+            |> List.concat_no_order
+          in
+          (* Send emojis in background *)
+          Lwt.async (fun () ->
+            Lwt.catch (fun () ->
+              Lwt_list.iter_s (fun emoji ->
+                Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id ~emoji
+              ) emojis) on_exn
+          );
+          Lwt.return state
+        | _ -> Lwt.return state
+        end
 
       (* Other events *)
       | _ -> Lwt.return state

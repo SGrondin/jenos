@@ -1,6 +1,7 @@
 (library
   (name discord)
   (libraries
+    objects
     rest
 
     cohttp-lwt-unix

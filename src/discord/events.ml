@@ -10,7 +10,7 @@ end
 module Ready = struct
   type t = {
     v: int;
-    user: User.t;
+    user: Objects.User.t;
     private_channels: unit list;
     session_id: string;
     shard: int list option [@default None];
@@ -23,7 +23,7 @@ module Voice_state_update = struct
     guild_id: string option [@default None];
     channel_id: string option;
     user_id: string;
-    member: Channel.member option [@default None];
+    member: Objects.Channel.member option [@default None];
     session_id: string;
   }
   [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
@@ -41,7 +41,7 @@ module Guild_create = struct
     id: string;
     name: string;
     member_count: int option [@default None];
-    members: Channel.member list option [@default None];
+    members: Objects.Channel.member list option [@default None];
     voice_states: voice_state list option [@default None];
   }
   [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]

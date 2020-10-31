@@ -1,18 +1,12 @@
 (library
-  (name rest)
+  (name objects)
   (libraries
-    latch
-
-    cohttp-lwt-unix
     core_kernel
-    lwt
-    lwt.unix
     ppx_deriving_yojson.runtime
     yojson
   )
   (preprocess (pps
     ppx_jane
-    lwt_ppx
     ppx_deriving_yojson
   ))
 )

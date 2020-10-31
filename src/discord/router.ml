@@ -12,8 +12,15 @@ type 'a state = {
 let close_timeout ?(timeout = 1.0) ?(code = 1000) send =
   Lwt_unix.with_timeout timeout (fun () -> send @@ Frame.close code)
 
+let run_handler handler ~on_exn ~respond user_state msg =
+  Lwt.catch (fun () -> handler ~respond user_state msg)
+    (fun exn ->
+        let%lwt () = on_exn exn in
+        Lwt.return user_state
+    )
+
 let handle
-    ~user_state_to_sexp ~before_handler ~after_handler
+    ~user_state_to_sexp ~before_handler ~after_handler ~on_exn
     (config : Config.t) send { internal_state; user_state } (msg : Message.Recv.t) =
 
   let send_response send message =
@@ -23,7 +30,7 @@ let handle
   in
   let respond = send_response send in
   (* BEFORE_HANDLER *)
-  let%lwt user_state = before_handler ~respond user_state msg in
+  let%lwt user_state = run_handler before_handler ~on_exn ~respond user_state msg in
   (* HANDLER *)
   let%lwt updated_internal_state = begin match msg with
   | { op = Hello; d; _ } ->
@@ -96,7 +103,7 @@ let handle
   end
   in
   (* AFTER_HANDLER *)
-  let%lwt user_state = after_handler ~respond user_state msg in
+  let%lwt user_state = run_handler after_handler ~on_exn ~respond user_state msg in
   Lwt.return {
     internal_state = updated_internal_state;
     user_state;

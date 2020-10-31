@@ -30,15 +30,32 @@ let make_uri ?(uri = base_uri) ll =
   |> String.concat ~sep:"/"
   |> Uri.with_path uri
 
-let exec ~headers ?body ~f meth uri =
+let latch = Latch.create ~cooldown:Int64.(300L * 1_000_000L)
+
+let fetch ~headers ?(expect = 200) ?body ~f meth uri =
+  let%lwt () = Latch.wait_and_trigger latch (Time_now.nanoseconds_since_unix_epoch () |> Int63.to_int64) in
   let%lwt res, res_body = Client.call ~headers ?body meth uri in
   let status = Response.status res in
   let%lwt body_str = Body.to_string res_body in
-  print_endline body_str;
+  let%lwt () = Lwt_io.printl body_str in
   begin match Code.code_of_status status with
-  | 200 ->
+  | code when code = expect ->
     let json = Yojson.Safe.from_string body_str in
     Lwt.return (f json)
   | _ ->
-    failwithf "Invalid HTTP response (%s)" (Code.string_of_status status) ()
+    failwithf "Invalid HTTP response (%s)\n%s\n%s"
+      (Code.string_of_status status) (Response.headers res |> Header.to_string) body_str ()
+  end
+
+let exec ~headers ?(expect = 200) ?body meth uri =
+  let%lwt () = Latch.wait_and_trigger latch (Time_now.nanoseconds_since_unix_epoch () |> Int63.to_int64) in
+  let%lwt res, res_body = Client.call ~headers ?body meth uri in
+  let status = Response.status res in
+  begin match Code.code_of_status status with
+  | code when code = expect ->
+    Lwt.return res_body
+  | _ ->
+    let%lwt body_str = Body.to_string res_body in
+    failwithf "Invalid HTTP response (%s)\n%s\n%s"
+      (Code.string_of_status status) (Response.headers res |> Header.to_string) body_str ()
   end
