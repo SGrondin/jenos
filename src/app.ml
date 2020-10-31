@@ -34,7 +34,12 @@ let () =
           else default_filename
         in
         let%lwt config = get_print_config filename in
-        Discord.Config.(create ~token:config.token ~intents:[GUILDS; GUILD_VOICE_STATES] ())
+        Discord.Config.(create
+            ~token:config.token
+            ~intents:[GUILDS; GUILD_VOICE_STATES]
+            ?activity:config.status
+            ()
+        )
         |> Jenos.create_bot config
       end
     )

@@ -42,7 +42,7 @@ end = struct
 
   | Frame.{ opcode = Close; extension; final; content } ->
     let%lwt () =
-      Lwt_io.printlf "⚠️ Received a Close frame. extension: %d. final: %b. content: %s"
+      Lwt_io.eprintlf "⚠️ Received a Close frame. extension: %d. final: %b. content: %s"
         extension final content
     in
     let%lwt () = Router.close_timeout send in
@@ -101,15 +101,10 @@ end = struct
     shutdown := Some (make_shutdown send);
     event_loop config recv send state
 
-  let with_random_sleep f x = Lwt.join [
-      f x;
-      Random.float_range 2.0 5.0 |> Lwt_unix.sleep;
-    ]
-
-  let blank_state () =
+  let blank_state ?(user_state = User_state.initial ()) () =
     Router.{
       internal_state = Internal_state.initial ();
-      user_state = User_state.initial ();
+      user_state;
     }
 
   let rec connection_loop (config : Config.t) state =
@@ -120,11 +115,13 @@ end = struct
         let user_state = User_state.t_of_sexp sexp in
         let%lwt () = User_state.before_resuming () in
         connection_loop config Router.{ internal_state; user_state }
-      | Router.Reconnect ->
-        let%lwt () = with_random_sleep User_state.before_reconnecting () in
-        connection_loop config (blank_state ())
+      | Router.Reconnect sexp ->
+        let user_state = User_state.t_of_sexp sexp in
+        let%lwt () = User_state.before_reconnecting () in
+        connection_loop config (blank_state ~user_state ())
       | exn ->
-        let%lwt () = with_random_sleep User_state.on_exn exn in
+        let%lwt () = Lwt_unix.sleep (Random.float_range 2.0 5.0) in
+        let%lwt () = User_state.on_exn exn in
         connection_loop config (blank_state ())
       )
 

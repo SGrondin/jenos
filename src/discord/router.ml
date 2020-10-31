@@ -2,7 +2,7 @@ open! Core_kernel
 open Websocket
 
 exception Resume of (Internal_state.t * Sexp.t)
-exception Reconnect
+exception Reconnect of Sexp.t
 
 type 'a state = {
   internal_state: Internal_state.t;
@@ -73,7 +73,7 @@ let handle
 
   | { op = Invalid_session; _ } ->
     let%lwt () = close_timeout send in
-    raise Reconnect
+    raise (Reconnect (user_state_to_sexp user_state))
 
   | { op = Dispatch; t = Some "READY"; s = _; d } ->
     let ready = Events.Ready.of_yojson_exn d in
@@ -84,7 +84,7 @@ let handle
     Lwt.return internal_state
 
   | { op = Reconnect; _ } ->
-    raise (Resume (internal_state, user_state_to_sexp user_state ))
+    raise (Resume (internal_state, user_state_to_sexp user_state))
 
   | ({ op = Identify; _ } as x)
   | ({ op = Presence_update; _ } as x)

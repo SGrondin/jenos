@@ -13,7 +13,7 @@ let rec loop sec until seq respond =
     Lwt.async (fun () ->
       Lwt.catch (fun () ->
         respond @@ Commands.Heartbeat.to_message !seq
-      ) (fun exn -> Lwt_io.eprintlf "Background loop exn: %s. Please report this bug."
+      ) (fun exn -> Lwt_io.eprintlf "❌ Background loop exn: %s. Please report this bug."
           (Exn.to_string exn))
     );
     loop sec until seq respond

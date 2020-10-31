@@ -5,14 +5,26 @@ open Discord
 let random_state = Random.State.make_self_init ()
 let () = Random.set_state random_state
 
+type lines = {
+  common: string array;
+  uncommon: string array;
+  rare: string array;
+} [@@deriving sexp, of_yojson { exn = true }]
+
+type thresholds = {
+  p_common: int;
+  p_uncommon: int;
+}  [@@deriving sexp, of_yojson { exn = true }]
+
 type config = {
   token: string;
   status: Commands.Identify.activity option [@default None];
-  line2: string array;
-  line4: string array;
+  thresholds: thresholds;
+  line2: lines;
+  line4: lines;
   vc_channel: string;
   text_channel: string;
-} [@@deriving of_yojson { exn = true }, sexp]
+} [@@deriving sexp, of_yojson { exn = true }]
 
 type vc_change =
 (* Voice State Update *)
@@ -20,22 +32,35 @@ type vc_change =
 (* Guild Create *)
 | GC of Channel.member list
 
-let previous = ref (Int64.of_int 0)
-let cooldown = Int64.(20L * 60L * 1_000_000_000L)
+let latch_all = Latch.create ~cooldown:Int64.(20L * 60L * 1_000_000_000L)
+let latch_notif = Latch.create ~cooldown:Int64.(30L * 60L * 1_000_000_000L)
 
-let can_send () =
-  let open Int64 in
+let can_send ~notifies =
   let now = Time_now.nanoseconds_since_unix_epoch () |> Int63.to_int64 in
-  let b = now > (!previous + cooldown) in
-  if b then previous := now;
+  let b =
+    if notifies
+    then Latch.check latch_all now && Latch.check latch_notif now
+    else Latch.check latch_all now
+  in
+  if b then begin
+    Latch.trigger latch_all now;
+    if notifies then Latch.trigger latch_notif now
+  end;
   b
 
-let post_message ~token ~channel_id ~content =
-  if can_send ()
+let post_message ~token ~channel_id ~content ~notifies =
+  if can_send ~notifies
   then Rest.Channel.create_message ~token ~channel_id ~content
   else Lwt_io.printl "⏳ Waiting until we can send again"
 
-let vc_member_change { token; text_channel; line2; line4; _ } ~before ~after change =
+let pick_line { p_common; p_uncommon } lines =
+  begin match Random.int_incl 1 100 with
+  | r when r <= p_common -> Array.random_element_exn lines.common
+  | r when r <= p_uncommon -> Array.random_element_exn lines.uncommon
+  | _ -> Array.random_element_exn lines.rare
+  end
+
+let vc_member_change { token; text_channel = channel_id; line2; line4; thresholds; _ } ~before ~after change =
   let nick_opt opt =
     Option.bind opt ~f:Channel.member_name
     |> Option.value ~default:"❓"
@@ -63,11 +88,13 @@ let vc_member_change { token; text_channel; line2; line4; _ } ~before ~after cha
   if after > before
   then begin match after with
   | 2 ->
-    let%lwt () = post_message ~token ~channel_id:text_channel ~content:(Array.random_element_exn line2) in
-    Lwt_io.printlf "✅ Posted to <%s>" text_channel
+    let content = pick_line thresholds line2 in
+    let%lwt () = post_message ~token ~channel_id ~content ~notifies:true in
+    Lwt_io.printlf "✅ Posted to <%s>" channel_id
   | 4 ->
-    let%lwt () = post_message ~token ~channel_id:text_channel ~content:(Array.random_element_exn line4) in
-    Lwt_io.printlf "✅ Posted to <%s>" text_channel
+    let content = pick_line thresholds line4 in
+    let%lwt () = post_message ~token ~channel_id ~content ~notifies:false in
+    Lwt_io.printlf "✅ Posted to <%s>" channel_id
   | _ -> Lwt.return_unit
   end
   else Lwt.return_unit
@@ -87,13 +114,13 @@ let create_bot config =
 
       let before_handler ~respond:_ state : Message.Recv.t -> t Lwt.t = function
       (* READY *)
-      | { op = Dispatch; t = Some "READY"; s = _; d } ->
+      | { op = Dispatch; t = Some "✅ READY"; s = _; d } ->
         let%lwt () = Lwt_io.printlf "READY! %s" (Yojson.Safe.to_string d) in
         Lwt.return state
 
       (* RECONNECT *)
       | { op = Reconnect; _ } ->
-        let%lwt () = Lwt_io.printl "⚠️ Received a Reconnect event." in
+        let%lwt () = Lwt_io.printl "⚠️ Received a Reconnect request." in
         Lwt.return state
 
       (* RESUMED *)

@@ -16,7 +16,7 @@ type intent =
 | DIRECT_MESSAGES
 | DIRECT_MESSAGE_REACTIONS
 | DIRECT_MESSAGE_TYPING
-[@@deriving enum]
+[@@deriving sexp, enum]
 
 
 type t = {
@@ -25,7 +25,7 @@ type t = {
   activity: Commands.Identify.activity;
   status: Commands.Identify.status;
   afk: bool;
-}
+} [@@deriving sexp]
 
 let create
     ~token
