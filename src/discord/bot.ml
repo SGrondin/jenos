@@ -45,7 +45,7 @@ end = struct
       Lwt_io.eprintlf "⚠️ Received a Close frame. extension: %d. final: %b. content: %s"
         extension final content
     in
-    let%lwt () = Router.close_timeout send in
+    let%lwt () = Router.close_timeout ~code:1001 send in
     raise (Router.Resume (internal_state, User_state.sexp_of_t user_state))
 
   | Frame.{ opcode = Pong; _ } ->
@@ -53,8 +53,9 @@ end = struct
 
   | Frame.{ opcode = Text; content; _ }
   | Frame.{ opcode = Binary; content; _ } ->
-    Message.Private.of_string (Internal_state.seq internal_state) content
-    |> Router.handle config send state
+    let message = Yojson.Safe.from_string content |> Message.Recv.of_yojson_exn in
+    Internal_state.received_seq message.s internal_state;
+    Router.handle config send state message
       ~before_handler:User_state.before_handler
       ~after_handler:User_state.after_handler
       ~user_state_to_sexp:User_state.sexp_of_t
@@ -69,7 +70,7 @@ end = struct
         let%lwt frame = recv () in
         handle config send state frame
       ) (fun exn ->
-        Option.iter (Internal_state.heartbeat internal_state) ~f:Internal_state.stop_heartbeat;
+        Internal_state.terminate internal_state;
         let%lwt () = Router.close_timeout ~code:1001 send in
         begin match exn with
         | End_of_file ->

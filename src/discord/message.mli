@@ -37,7 +37,3 @@ module Send : sig
   }
   [@@deriving sexp_of, fields, to_yojson]
 end
-
-module Private : sig
-  val of_string : int option ref -> string -> Recv.t
-end

@@ -85,10 +85,3 @@ module Send = struct
   }
   [@@deriving sexp_of, fields, to_yojson]
 end
-
-module Private = struct
-  let of_string seq raw =
-    let message = Yojson.Safe.from_string raw |> Recv.of_yojson_exn in
-    Option.iter message.s ~f:(fun s -> seq := Some s);
-    message
-end

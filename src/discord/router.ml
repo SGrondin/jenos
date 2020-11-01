@@ -42,7 +42,7 @@ let handle
         Resume.{
           token = config.token;
           session_id = id;
-          seq = !(Internal_state.seq internal_state);
+          seq = Internal_state.seq internal_state;
         }
         |> Resume.to_message
       | None ->
@@ -75,7 +75,9 @@ let handle
     let%lwt () = Commands.Heartbeat_ACK.to_message |> respond in
     Lwt.return internal_state
 
-  | { op = Heartbeat_ACK; _ } ->
+  | { op = Heartbeat_ACK; d; _ } ->
+    let%lwt () = Lwt_io.printlf "ACK: %s" (Yojson.Safe.to_string d) in
+    Internal_state.received_ack internal_state;
     Lwt.return internal_state
 
   | { op = Invalid_session; _ } ->
