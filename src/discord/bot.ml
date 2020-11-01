@@ -24,9 +24,7 @@ end = struct
 
   let shutdown = ref None
   let make_shutdown send () =
-    Lwt_main.at_exit (fun () ->
-      Lwt_unix.with_timeout 1.0 (fun () -> send @@ Frame.close 1000)
-    );
+    Lwt_main.at_exit (fun () -> Router.close_timeout send);
     raise Exit
 
   let () =
@@ -43,7 +41,7 @@ end = struct
   | Frame.{ opcode = Close; extension; final; content } ->
     let%lwt () =
       Lwt_io.eprintlf "⚠️ Received a Close frame. extension: %d. final: %b. content: %s"
-        extension final content
+        extension final Sexp.(to_string (Atom content))
     in
     let%lwt () = Router.close_timeout ~code:1001 send in
     raise (Router.Resume (internal_state, User_state.sexp_of_t user_state))

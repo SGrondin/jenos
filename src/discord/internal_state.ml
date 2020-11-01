@@ -4,32 +4,38 @@ type heartbeat = {
   ms: int;
   mutable until: bool;
   mutable seq: int option;
-  mutable ack: int option;
+  mutable ack: int;
+  mutable count: int;
 }
 [@@deriving sexp]
 
-let rec loop heartbeat respond =
+let rec loop heartbeat respond close =
   let%lwt () = Lwt_unix.sleep (heartbeat.ms // 1000) in
   if heartbeat.until then Lwt.return_unit else begin
     Lwt.async (fun () ->
       Lwt.catch (fun () ->
-        let%lwt () = Lwt_io.printlf "HB: %s" (Option.value_map ~default:"!!!" ~f:Int.to_string heartbeat.seq) in
-        respond @@ Commands.Heartbeat.to_message heartbeat.seq
+        if heartbeat.ack < heartbeat.count
+        then close heartbeat.ack heartbeat.count
+        else begin
+          heartbeat.count <- heartbeat.count + 1;
+          respond @@ Commands.Heartbeat.to_message heartbeat.seq
+        end
       ) (fun exn -> Lwt_io.eprintlf "❌ Background loop exn: %s. Please report this bug."
           (Exn.to_string exn))
     );
-    loop heartbeat respond
+    loop heartbeat respond close
   end
 
-let start_heartbeat ~heartbeat_interval ~seq respond =
+let start_heartbeat ~heartbeat_interval ~seq respond close =
   let heartbeat = {
     ms = heartbeat_interval;
     until = false;
     seq;
-    ack = None;
+    ack = 0;
+    count = 0;
   }
   in
-  Lwt.async (fun () -> loop heartbeat respond);
+  Lwt.async (fun () -> loop heartbeat respond close);
   heartbeat
 
 let stop_heartbeat heartbeat = heartbeat.until <- true
@@ -45,16 +51,16 @@ type t =
 
 let initial () = Starting None
 
-let received_hello ~heartbeat_interval respond = function
+let received_hello ~heartbeat_interval respond close = function
 | Starting seq ->
-  After_hello (start_heartbeat ~heartbeat_interval ~seq respond)
+  After_hello (start_heartbeat ~heartbeat_interval ~seq respond close)
 | After_hello heartbeat ->
   stop_heartbeat heartbeat;
-  After_hello (start_heartbeat ~heartbeat_interval ~seq:heartbeat.seq respond)
+  After_hello (start_heartbeat ~heartbeat_interval ~seq:heartbeat.seq respond close)
 | Connected { heartbeat; session_id } ->
   stop_heartbeat heartbeat;
   Connected {
-    heartbeat = start_heartbeat ~heartbeat_interval ~seq:heartbeat.seq respond;
+    heartbeat = start_heartbeat ~heartbeat_interval ~seq:heartbeat.seq respond close;
     session_id;
   }
 
@@ -78,7 +84,7 @@ let received_ack = function
 | Starting _ -> ()
 | After_hello heartbeat
 | Connected { heartbeat; _ } ->
-  heartbeat.ack <- heartbeat.seq
+  heartbeat.ack <- heartbeat.ack + 1
 
 let seq = function
 | Starting seq

@@ -10,7 +10,10 @@ type 'a state = {
 }
 
 let close_timeout ?(timeout = 1.0) ?(code = 1000) send =
-  Lwt_unix.with_timeout timeout (fun () -> send @@ Frame.close code)
+  Lwt_unix.with_timeout timeout (fun () ->
+    let%lwt () = Lwt_io.printl "⏹️ Closing connection..." in
+    send @@ Frame.close code
+  )
 
 let run_handler handler ~on_exn ~respond user_state msg =
   Lwt.catch (fun () -> handler ~respond user_state msg)
@@ -68,15 +71,18 @@ let handle
       |> respond
     in
     let heartbeat_interval = hello.heartbeat_interval in
-    Internal_state.received_hello ~heartbeat_interval respond internal_state
+    let close ack count =
+      let%lwt () = Lwt_io.printlf "❌ Discontinuity error: ACK = %d but HB = %d. Closing the connection" ack count in
+      close_timeout ~code:1001 send
+    in
+    Internal_state.received_hello ~heartbeat_interval respond close internal_state
     |> Lwt.return
 
   | { op = Heartbeat; _ } ->
     let%lwt () = Commands.Heartbeat_ACK.to_message |> respond in
     Lwt.return internal_state
 
-  | { op = Heartbeat_ACK; d; _ } ->
-    let%lwt () = Lwt_io.printlf "ACK: %s" (Yojson.Safe.to_string d) in
+  | { op = Heartbeat_ACK; _ } ->
     Internal_state.received_ack internal_state;
     Lwt.return internal_state
 
