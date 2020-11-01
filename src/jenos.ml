@@ -54,19 +54,19 @@ type vc_change =
 (* Guild Create *)
 | GC of Objects.Channel.member list
 
-let latch_all = Latch.create ~cooldown:Int64.(20L * 60L * 1_000_000_000L)
-let latch_notif = Latch.create ~cooldown:Int64.(30L * 60L * 1_000_000_000L)
+let latch_all = Latch.(create ~cooldown:Int64.(20L * Time.min))
+let latch_notif = Latch.(create ~cooldown:Int64.(30L * Time.min))
 
 let can_send ~notifies =
-  let now = Time_now.nanoseconds_since_unix_epoch () |> Int63.to_int64 in
+  let now = Latch.Time.get () in
   let b =
     if notifies
-    then Latch.check latch_all now && Latch.check latch_notif now
-    else Latch.check latch_all now
+    then Latch.check ~now latch_all && Latch.check ~now latch_notif
+    else Latch.check ~now latch_all
   in
   if b then begin
-    Latch.trigger latch_all now;
-    if notifies then Latch.trigger latch_notif now
+    Latch.trigger ~now latch_all;
+    if notifies then Latch.trigger ~now latch_notif
   end;
   b
 
@@ -77,10 +77,11 @@ let post_message ~token ~channel_id ~content ~notifies =
 
 let pick_line { p_common; p_uncommon } lines =
   begin match Random.int_incl 1 100 with
-  | r when r <= p_common -> Array.random_element_exn lines.common
-  | r when r <= p_uncommon -> Array.random_element_exn lines.uncommon
-  | _ -> Array.random_element_exn lines.rare
+  | r when r <= p_common -> lines.common
+  | r when r <= p_uncommon -> lines.uncommon
+  | _ -> lines.rare
   end
+  |> Array.random_element_exn
 
 let vc_member_change { token; text_channel = channel_id; line2; line4; thresholds; _ } ~before ~after change =
   let nick_opt opt =
@@ -215,12 +216,10 @@ let create_bot config =
             )
             |> List.concat_no_order
           in
-          (* Send emojis in background *)
-          Lwt.async (fun () ->
-            Lwt.catch (fun () ->
-              Lwt_list.iter_s (fun emoji ->
-                Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id ~emoji
-              ) emojis) on_exn
+          Rest.Call.background ~on_exn (fun () ->
+            Lwt_list.iter_s (fun emoji ->
+              Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id ~emoji
+            ) emojis
           );
           Lwt.return state
         | _ -> Lwt.return state

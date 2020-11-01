@@ -2,6 +2,7 @@ open! Core_kernel
 open! Cohttp
 open! Cohttp_lwt_unix
 module Body = Cohttp_lwt.Body
+open Lwt.Infix
 
 let name = "Camlbot"
 
@@ -30,32 +31,42 @@ let make_uri ?(uri = base_uri) ll =
   |> String.concat ~sep:"/"
   |> Uri.with_path uri
 
-let latch = Latch.create ~cooldown:Int64.(300L * 1_000_000L)
+let latch = Latch.(create ~cooldown:Int64.(300L * Time.ms))
 
-let fetch ~headers ?(expect = 200) ?body ~f meth uri =
-  let%lwt () = Latch.wait_and_trigger latch (Time_now.nanoseconds_since_unix_epoch () |> Int63.to_int64) in
+type _ handler =
+| JSON : Yojson.Safe.t handler
+| Ignore : unit handler
+| Print : unit handler
+| Parse : (Yojson.Safe.t -> 'a) -> 'a handler
+
+let run : type a. headers:Header.t -> ?expect:int -> ?body:Body.t -> Code.meth -> Uri.t -> a handler -> a Lwt.t =
+  fun ~headers ?(expect = 200) ?body meth uri handler ->
+  let%lwt () = Latch.wait_and_trigger latch in
   let%lwt res, res_body = Client.call ~headers ?body meth uri in
   let status = Response.status res in
-  let%lwt body_str = Body.to_string res_body in
-  let%lwt () = Lwt_io.printl body_str in
-  begin match Code.code_of_status status with
-  | code when code = expect ->
-    let json = Yojson.Safe.from_string body_str in
-    Lwt.return (f json)
-  | _ ->
-    failwithf "Invalid HTTP response (%s)\n%s\n%s"
-      (Code.string_of_status status) (Response.headers res |> Header.to_string) body_str ()
-  end
-
-let exec ~headers ?(expect = 200) ?body meth uri =
-  let%lwt () = Latch.wait_and_trigger latch (Time_now.nanoseconds_since_unix_epoch () |> Int63.to_int64) in
-  let%lwt res, res_body = Client.call ~headers ?body meth uri in
-  let status = Response.status res in
-  begin match Code.code_of_status status with
-  | code when code = expect ->
-    Lwt.return res_body
-  | _ ->
+  let get_body_str () =
     let%lwt body_str = Body.to_string res_body in
+    let%lwt () = Lwt_io.printl body_str in
+    Lwt.return body_str
+  in
+  begin match Code.code_of_status status with
+  | code when code = expect ->
+    let handle : a Lwt.t = begin match handler with
+    | JSON ->
+      get_body_str () >|= Yojson.Safe.from_string
+    | Ignore ->
+      Body.drain_body res_body
+    | Print ->
+      get_body_str () >|= ignore
+    | Parse f ->
+      get_body_str () >|= Yojson.Safe.from_string >|= f
+    end
+    in
+    handle
+  | _ ->
+    let%lwt body_str = get_body_str () in
     failwithf "Invalid HTTP response (%s)\n%s\n%s"
       (Code.string_of_status status) (Response.headers res |> Header.to_string) body_str ()
   end
+
+let background ~on_exn f = Lwt.async (fun () -> Lwt.catch f on_exn)

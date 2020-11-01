@@ -4,8 +4,15 @@ type t
 
 val create: cooldown:Int64.t -> t
 
-val check: t -> Int64.t -> bool
+module Time : sig
+  val get: unit -> Int64.t
+  val min: Int64.t
+  val sec: Int64.t
+  val ms: Int64.t
+end
 
-val trigger: t -> Int64.t -> unit
+val check: ?now:Int64.t -> t -> bool
 
-val wait_and_trigger: t -> Int64.t -> unit Lwt.t
+val trigger: ?now:Int64.t -> t -> unit
+
+val wait_and_trigger: ?now:Int64.t -> t -> unit Lwt.t

@@ -14,11 +14,18 @@ let create ~cooldown = {
   mutex = Lwt_mutex.create ();
 }
 
-let check latch now = now > (latch.previous + latch.cooldown)
+module Time = struct
+  let get () = Time_now.nanoseconds_since_unix_epoch () |> Int63.to_int64
+  let min = 60L * 1_000_000_000L
+  let sec = 1_000_000_000L
+  let ms = 1_000_000L
+end
 
-let trigger latch now = latch.previous <- now
+let check ?(now = Time.get ()) latch = now > (latch.previous + latch.cooldown)
 
-let wait_and_trigger latch now =
+let trigger ?(now = Time.get ()) latch = latch.previous <- now
+
+let wait_and_trigger ?(now = Time.get ()) latch =
   let next = latch.previous + latch.cooldown in
   if now > next
   then begin
@@ -27,8 +34,7 @@ let wait_and_trigger latch now =
   end
   else begin
     Lwt_mutex.with_lock latch.mutex (fun () ->
-      let s = (next - now) // 1_000_000_000L in
-      let%lwt () = Lwt_unix.sleep s in
+      let%lwt () = Lwt_unix.sleep ((next - now) // Time.sec) in
       latch.previous <- now;
       Lwt.return_unit
     )
