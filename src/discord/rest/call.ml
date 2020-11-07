@@ -4,7 +4,7 @@ open! Cohttp_lwt_unix
 module Body = Cohttp_lwt.Body
 open Lwt.Infix
 
-let name = "Camlbot"
+let name = "Camlbot v0.9"
 
 let headers ~token = Header.of_list [
     "Authorization", sprintf "Bot %s" token;

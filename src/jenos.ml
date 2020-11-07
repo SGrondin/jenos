@@ -130,15 +130,17 @@ let create_bot config =
 
       let initial () = { tracker = String.Set.empty }
 
-      let before_resuming () = Lwt_io.printl "⏯️ Resuming..."
-      let before_reconnecting () = Lwt_io.printl "🌐 Reconnecting..."
-      let on_connection_closed () = Lwt_io.eprintl "🔌 Connection was closed."
+      let (>>>) f x = Lwt.map (fun () -> x) f
+
+      let before_reidentifying state = Lwt_io.printl "⏯️ Resuming..." >>> state
+      let before_reconnecting state = Lwt_io.printl "🌐 Reconnecting..." >>> state
+      let on_connection_closed state = Lwt_io.eprintl "🔌 Connection was closed." >>> state
       let on_exn exn = Lwt_io.eprintlf "❌ Unexpected error: %s" (Exn.to_string exn)
 
       let before_handler ~respond:_ state : Message.Recv.t -> t Lwt.t = function
       (* READY *)
-      | { op = Dispatch; t = Some "✅ READY"; s = _; d } ->
-        let%lwt () = Lwt_io.printlf "READY! %s" (Yojson.Safe.to_string d) in
+      | { op = Dispatch; t = Some "READY"; s = _; d } ->
+        let%lwt () = Lwt_io.printlf "✅ READY! %s" (Yojson.Safe.to_string d) in
         Lwt.return state
 
       (* RECONNECT *)
@@ -148,12 +150,12 @@ let create_bot config =
 
       (* RESUMED *)
       | { op = Dispatch; t = Some "RESUMED"; s = _; d = _ } ->
-        let%lwt () = Lwt_io.printl "⏯️ Resumed" in
+        let%lwt () = Lwt_io.printl "▶️ Resumed" in
         Lwt.return state
 
       (* INVALID_SESSION *)
       | { op = Invalid_session; _ } ->
-        let%lwt () = Lwt_io.eprintl "🔌 Session rejected, starting a new session..." in
+        let%lwt () = Lwt_io.eprintl "⚠️ Session rejected, starting a new session..." in
         Lwt.return state
 
       | _ -> Lwt.return state

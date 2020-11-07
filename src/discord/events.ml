@@ -7,6 +7,11 @@ module Hello = struct
   [@@deriving sexp, fields, of_yojson { exn = true; strict = false }] [@@unboxed]
 end
 
+module Reconnect = struct
+  type t = bool
+  [@@deriving sexp, of_yojson { exn = true; strict = false }]
+end
+
 module Ready = struct
   type t = {
     v: int;
