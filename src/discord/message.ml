@@ -66,10 +66,11 @@ end
 
 
 module Recv = struct
+  let (=) = Poly.(=)
   type t = {
     op: Opcode.t;
-    t: string option;
-    s: int option;
+    t: string option [@default None];
+    s: int option [@default None];
     d: Yojson.Safe.t;
   }
   [@@deriving sexp_of, fields, yojson { exn = true }]
