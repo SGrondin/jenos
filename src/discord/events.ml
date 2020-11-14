@@ -7,7 +7,7 @@ module Hello = struct
   [@@deriving sexp, fields, of_yojson { exn = true; strict = false }] [@@unboxed]
 end
 
-module Reconnect = struct
+module Invalid_session = struct
   type t = bool
   [@@deriving sexp, of_yojson { exn = true; strict = false }]
 end

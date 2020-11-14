@@ -93,8 +93,11 @@ let handle_message
     Internal_state.received_ack internal_state;
     Lwt.return internal_state
 
-  | { op = Invalid_session; _ } ->
-    raise (Reidentify (internal_state, user_state_to_sexp user_state))
+  | { op = Invalid_session; d; _ } ->
+    let resumable = Events.Invalid_session.of_yojson_exn d in
+    if resumable
+    then raise (Reidentify (internal_state, user_state_to_sexp user_state))
+    else raise (Reconnect (internal_state, user_state_to_sexp user_state))
 
   | { op = Dispatch; t = Some "READY"; s = _; d } ->
     let ready = Events.Ready.of_yojson_exn d in
