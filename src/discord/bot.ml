@@ -43,7 +43,7 @@ end = struct
         Lwt_io.eprintlf "⚠️ Received a Close frame. extension: %d. final: %b. content: %s"
           extension final Sexp.(to_string (Atom content))
       in
-      raise (Router.Reconnect (true, internal_state, Bot.sexp_of_t user_state))
+      raise (Router.Reconnect (internal_state, Bot.sexp_of_t user_state))
 
     | Frame.{ opcode = Pong; _ } ->
       Lwt.return state
@@ -75,24 +75,22 @@ end = struct
         let%lwt () = Router.identify config send in
         Lwt.return Router.{ internal_state; user_state }
 
-      | Router.Reconnect (resumable, internal_state, sexp) ->
+      | Router.Reconnect (internal_state, sexp) ->
         Internal_state.terminate internal_state;
         let user_state = Bot.t_of_sexp sexp in
         let%lwt user_state = Bot.before_reconnecting user_state in
-        let code, internal_state =
-          if resumable
-          then 1002, internal_state
-          else 1000, Internal_state.initial ()
-        in
-        let%lwt () = Router.close_timeout ~code send in
-        raise (Router.Reconnect (resumable, internal_state, Bot.sexp_of_t user_state))
+        let%lwt () = Router.close_timeout ~code:1002 send in
+        raise (Router.Reconnect (internal_state, Bot.sexp_of_t user_state))
 
       | End_of_file ->
         Internal_state.terminate internal_state;
         let%lwt () = Bot.on_connection_closed () in
-        raise (Router.Reconnect (true, internal_state, Bot.sexp_of_t user_state))
+        raise (Router.Reconnect (internal_state, Bot.sexp_of_t user_state))
 
-      | exn -> raise exn
+      | exn ->
+        Internal_state.terminate internal_state;
+        let%lwt () = Router.close_timeout ~code:1001 send in
+        raise exn
       )
     in
     event_loop config recv send updated
@@ -128,7 +126,7 @@ end = struct
     let%lwt res = Rest.Gateway.get ~token:config.token in
     Lwt.catch (fun () -> connect config state res.url)
       (function
-      | Router.Reconnect (resumable, internal_state, sexp) ->
+      | Router.Reconnect (internal_state, sexp) ->
         let user_state = Bot.t_of_sexp sexp in
         connection_loop config Router.{ internal_state; user_state }
       | exn ->

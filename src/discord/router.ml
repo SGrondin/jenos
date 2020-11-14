@@ -1,7 +1,7 @@
 open! Core_kernel
 open Websocket
 
-exception Reconnect of (bool * Internal_state.t * Sexp.t)
+exception Reconnect of (Internal_state.t * Sexp.t)
 exception Reidentify of (Internal_state.t * Sexp.t)
 
 type 'a state = {
@@ -104,9 +104,12 @@ let handle_message
   | { op = Dispatch; _ } ->
     Lwt.return internal_state
 
-  | { op = Reconnect; d; _ } ->
-    let reconnect = Events.Reconnect.of_yojson_exn d in
-    raise (Reconnect (reconnect, internal_state, user_state_to_sexp user_state))
+  | ({ op = Reconnect; _ } as msg) ->
+    let%lwt () = Lwt_io.printlf "!!! Received Reconnect message: %s %s"
+        (Message.Recv.to_yojson msg |> Yojson.Safe.to_string)
+        (Message.Recv.sexp_of_t msg |> Sexp.to_string)
+    in
+    raise (Reconnect (internal_state, user_state_to_sexp user_state))
 
   | ({ op = Identify; _ } as x)
   | ({ op = Presence_update; _ } as x)

@@ -71,7 +71,7 @@ module Recv = struct
     op: Opcode.t;
     t: string option [@default None];
     s: int option [@default None];
-    d: Yojson.Safe.t;
+    d: Yojson.Safe.t [@default `Assoc []];
   }
   [@@deriving sexp_of, fields, yojson { exn = true }]
 end
