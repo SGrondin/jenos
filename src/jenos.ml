@@ -137,7 +137,7 @@ let create_bot config =
       let on_connection_closed state = Lwt_io.eprintl "🔌 Connection was closed." >>> state
       let on_exn exn = Lwt_io.eprintlf "❌ Unexpected error: %s" (Exn.to_string exn)
 
-      let before_handler ~respond:_ state : Message.Recv.t -> t Lwt.t = function
+      let before_action ~respond:_ state : Message.Recv.t -> t Lwt.t = function
       (* READY *)
       | { op = Dispatch; t = Some "READY"; s = _; d } ->
         let%lwt () = Lwt_io.printlf "✅ READY! %s" (Yojson.Safe.to_string d) in
@@ -160,7 +160,7 @@ let create_bot config =
 
       | _ -> Lwt.return state
 
-      let after_handler ~respond:_ ({ tracker } as state) : Message.Recv.t -> t Lwt.t = function
+      let after_action ~respond:_ ({ tracker } as state) : Message.Recv.t -> t Lwt.t = function
       (* VOICE_STATE_UPDATE *)
       | { op = Dispatch; t = Some "VOICE_STATE_UPDATE"; s = _; d } ->
         let before = String.Set.length tracker in
