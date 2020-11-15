@@ -13,7 +13,7 @@ module Payload = struct
   [@@deriving sexp, fields, to_yojson]
 end
 
-let create_message ~token ~channel_id ~content =
+let create_message ~token ~channel_id ~content handler =
   let body =
     {
       content;
@@ -26,9 +26,9 @@ let create_message ~token ~channel_id ~content =
   in
   let headers = Header.add (Call.headers ~token) "content-type" "application/json" in
   let uri = Call.make_uri ["channels"; channel_id; "messages"] in
-  Call.run ~headers ~body `POST uri Print
+  Call.run ~headers ~body `POST uri handler
 
-let create_reaction ~token ~channel_id ~message_id ~emoji =
+let create_reaction ~token ~channel_id ~message_id ~emoji handler =
   let headers = Call.headers ~token in
   let uri = Call.make_uri [
       "channels"; channel_id;
@@ -37,4 +37,4 @@ let create_reaction ~token ~channel_id ~message_id ~emoji =
       "@me"
     ]
   in
-  Call.run ~headers ~expect:204 `PUT uri Ignore
+  Call.run ~headers ~expect:204 `PUT uri handler

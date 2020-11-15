@@ -68,5 +68,3 @@ let run : type a. headers:Header.t -> ?expect:int -> ?body:Body.t -> Code.meth -
     failwithf "Invalid HTTP response (%s)\n%s\n%s"
       (Code.string_of_status status) (Response.headers res |> Header.to_string) body_str ()
   end
-
-let background ~on_exn f = Lwt.async (fun () -> Lwt.catch f on_exn)

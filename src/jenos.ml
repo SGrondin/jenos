@@ -72,7 +72,7 @@ let can_send ~notifies =
 
 let post_message ~token ~channel_id ~content ~notifies =
   if can_send ~notifies
-  then Rest.Channel.create_message ~token ~channel_id ~content
+  then Rest.Channel.create_message ~token ~channel_id ~content Print
   else Lwt_io.printl "⏳ Waiting until we can send again"
 
 let pick_line { p_common; p_uncommon } lines =
@@ -124,111 +124,121 @@ let vc_member_change { token; text_channel = channel_id; line2; line4; threshold
 
 let create_bot config =
   let module Bot = Bot.Make (struct
+      open Bot
       type t = {
         tracker: String.Set.t;
-      } [@@deriving sexp]
+      }
 
-      let initial () = { tracker = String.Set.empty }
+      let create () = { tracker = String.Set.empty }
 
       let (>>>) f x = Lwt.map (fun () -> x) f
 
-      let before_reidentifying state = Lwt_io.printl "⏯️ Resuming..." >>> state
-      let before_reconnecting state = Lwt_io.printl "🌐 Reconnecting..." >>> state
-      let on_connection_closed state = Lwt_io.eprintl "🔌 Connection was closed." >>> state
-      let on_exn exn = Lwt_io.eprintlf "❌ Unexpected error: %s" (Exn.to_string exn)
+      let on_exn exn = Lwt_io.printlf "❌ Unexpected error: %s" (Exn.to_string exn)
 
-      let before_action ~respond:_ state : Message.Recv.t -> t Lwt.t = function
-      (* READY *)
-      | { op = Dispatch; t = Some "READY"; s = _; d } ->
-        let%lwt () = Lwt_io.printlf "✅ READY! %s" (Yojson.Safe.to_string d) in
-        Lwt.return state
+      let on_background_event = function
+      | Closing_connection Final -> Lwt_io.printl "⏹️ Closing connection (Final)..."
+      | Closing_connection Unexpected -> Lwt_io.printl "⏹️ Closing connection (Unexpected)..."
+      | Closing_connection Reconnecting -> Lwt_io.printl "⏹️ Closing connection (Reconnecting)..."
+      | Discontinuity_error { heartbeat; ack } -> Lwt_io.printlf "❌ Discontinuity error: ACK = %d but HB = %d. Closing the connection" ack heartbeat
 
-      (* RECONNECT *)
-      | { op = Reconnect; _ } ->
-        let%lwt () = Lwt_io.printl "⚠️ Received a Reconnect request." in
-        Lwt.return state
+      let on_lifecycle_event ({ tracker } as state) = function
+      | Connection_lost -> Lwt_io.printl "🔌 Connection was closed." >>> state
+      | Discord_websocket_issue { extension; final; content } ->
+        Lwt_io.printlf "⚠️ Received a Close frame. extension: %d. final: %b. content: %s"
+          extension final Sexp.(to_string (Atom content))
+        >>> state
+      | Before_reidentifying -> Lwt_io.printl "⏯️ Resuming..." >>> state
+      | Before_reconnecting -> Lwt_io.printl "🌐 Reconnecting..." >>> state
+      | Before_action msg -> begin match msg with
+        (* READY *)
+        | { op = Dispatch; t = Some "READY"; s = _; d } ->
+          Lwt_io.printlf "✅ READY! %s" (Yojson.Safe.to_string d) >>> state
 
-      (* RESUMED *)
-      | { op = Dispatch; t = Some "RESUMED"; s = _; d = _ } ->
-        let%lwt () = Lwt_io.printl "▶️ Resumed" in
-        Lwt.return state
+        (* RECONNECT *)
+        | { op = Reconnect; _ } ->
+          Lwt_io.printl "⚠️ Received a Reconnect request." >>> state
 
-      (* INVALID_SESSION *)
-      | { op = Invalid_session; _ } ->
-        let%lwt () = Lwt_io.eprintl "⚠️ Session rejected, starting a new session..." in
-        Lwt.return state
+        (* RESUMED *)
+        | { op = Dispatch; t = Some "RESUMED"; s = _; d = _ } ->
+          Lwt_io.printl "▶️ Resumed" >>> state
 
-      | _ -> Lwt.return state
+        (* INVALID_SESSION *)
+        | { op = Invalid_session; _ } ->
+          Lwt_io.printl "⚠️ Session rejected, starting a new session..." >>> state
 
-      let after_action ~respond:_ ({ tracker } as state) : Message.Recv.t -> t Lwt.t = function
-      (* VOICE_STATE_UPDATE *)
-      | { op = Dispatch; t = Some "VOICE_STATE_UPDATE"; s = _; d } ->
-        let before = String.Set.length tracker in
-        let tracker, member = begin match Events.Voice_state_update.of_yojson_exn d with
-        (* Target channel, not a bot *)
-        | { channel_id = Some channel_id; user_id; member; _ }
-          when (Objects.Channel.is_bot member |> not) && String.(=) channel_id config.vc_channel ->
-          String.Set.add tracker user_id, member
-        (* Anything else *)
-        | { user_id; member; _ } -> String.Set.remove tracker user_id, member
-        end
-        in
-        let after = String.Set.length tracker in
-        let%lwt () = vc_member_change config ~before ~after (VSU member) in
-        Lwt.return { tracker }
-
-      (* GUILD_CREATE *)
-      | { op = Dispatch; t = Some "GUILD_CREATE"; s = _; d } ->
-        let before = String.Set.length tracker in
-        let gc = Events.Guild_create.of_yojson_exn d in
-        let users_in_target_channel = begin match gc with
-        | { voice_states = None; _ } -> String.Set.empty
-        | { voice_states = Some ll; _ } ->
-          List.fold ll ~init:String.Set.empty ~f:(fun acc -> function
-          | { channel_id = Some channel_id; user_id; _ } when String.(=) channel_id config.vc_channel ->
-            String.Set.add acc user_id
-          | _ -> acc
-          )
-        end
-        in
-        let tracker, members = begin match gc.members with
-        | None -> String.Set.empty, []
-        | Some members ->
-          List.fold members ~init:(String.Set.empty, []) ~f:(fun ((set, ll) as acc) -> function
-          | (Objects.Channel.{ user = Some { id; _ }; _ } as member) when String.Set.mem users_in_target_channel id ->
-            if String.Set.mem set id
-            then acc
-            else (String.Set.add set id, (member :: ll))
-          | _ -> acc
-          )
-        end
-        in
-        let after = String.Set.length tracker in
-        let%lwt () = vc_member_change config ~before ~after (GC members) in
-        Lwt.return { tracker }
-
-      (* MESSAGE_CREATE *)
-      | { op = Dispatch; t = Some "MESSAGE_CREATE"; s = _; d } ->
-        begin match Objects.Message.of_yojson_exn d with
-        | { id = message_id; type_ = DEFAULT; channel_id; content; _ } ->
-          let emojis =
-            List.filter_map config.reactions ~f:(function
-            | { regex; emojis } when Regex.matching regex content -> Some emojis
-            | _ -> None
-            )
-            |> List.concat_no_order
-          in
-          Rest.Call.background ~on_exn (fun () ->
-            Lwt_list.iter_s (fun emoji ->
-              Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id ~emoji
-            ) emojis
-          );
-          Lwt.return state
         | _ -> Lwt.return state
         end
 
-      (* Other events *)
-      | _ -> Lwt.return state
+      | After_action msg -> begin match msg with
+        (* VOICE_STATE_UPDATE *)
+        | { op = Dispatch; t = Some "VOICE_STATE_UPDATE"; s = _; d } ->
+          let before = String.Set.length tracker in
+          let tracker, member = begin match Events.Voice_state_update.of_yojson_exn d with
+          (* Target channel, not a bot *)
+          | { channel_id = Some channel_id; user_id; member; _ }
+            when (Objects.Channel.is_bot member |> not) && String.(=) channel_id config.vc_channel ->
+            String.Set.add tracker user_id, member
+          (* Anything else *)
+          | { user_id; member; _ } -> String.Set.remove tracker user_id, member
+          end
+          in
+          let after = String.Set.length tracker in
+          let%lwt () = vc_member_change config ~before ~after (VSU member) in
+          Lwt.return { tracker }
+
+        (* GUILD_CREATE *)
+        | { op = Dispatch; t = Some "GUILD_CREATE"; s = _; d } ->
+          let before = String.Set.length tracker in
+          let gc = Events.Guild_create.of_yojson_exn d in
+          let users_in_target_channel = begin match gc with
+          | { voice_states = None; _ } -> String.Set.empty
+          | { voice_states = Some ll; _ } ->
+            List.fold ll ~init:String.Set.empty ~f:(fun acc -> function
+            | { channel_id = Some channel_id; user_id; _ } when String.(=) channel_id config.vc_channel ->
+              String.Set.add acc user_id
+            | _ -> acc
+            )
+          end
+          in
+          let tracker, members = begin match gc.members with
+          | None -> String.Set.empty, []
+          | Some members ->
+            List.fold members ~init:(String.Set.empty, []) ~f:(fun ((set, ll) as acc) -> function
+            | (Objects.Channel.{ user = Some { id; _ }; _ } as member) when String.Set.mem users_in_target_channel id ->
+              if String.Set.mem set id
+              then acc
+              else (String.Set.add set id, (member :: ll))
+            | _ -> acc
+            )
+          end
+          in
+          let after = String.Set.length tracker in
+          let%lwt () = vc_member_change config ~before ~after (GC members) in
+          Lwt.return { tracker }
+
+        (* MESSAGE_CREATE *)
+        | { op = Dispatch; t = Some "MESSAGE_CREATE"; s = _; d } ->
+          begin match Objects.Message.of_yojson_exn d with
+          | { id = message_id; type_ = DEFAULT; channel_id; content; _ } ->
+            let emojis =
+              List.filter_map config.reactions ~f:(function
+              | { regex; emojis } when Regex.matching regex content -> Some emojis
+              | _ -> None
+              )
+              |> List.concat_no_order
+            in
+            in_background ~on_exn (fun () ->
+              Lwt_list.iter_s (fun emoji ->
+                Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id ~emoji Ignore
+              ) emojis
+            );
+            Lwt.return state
+          | _ -> Lwt.return state
+          end
+
+        (* Other events *)
+        | _ -> Lwt.return state
+        end
     end)
   in
   Bot.start

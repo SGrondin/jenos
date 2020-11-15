@@ -2,7 +2,7 @@ open! Core
 
 let () = Lwt.async_exception_hook := (fun ex ->
     let open Lwt in
-    let _ : unit Lwt.t = Lwt_io.eprintlf "💀 UNCAUGHT EXCEPTION: %s" (Exn.to_string ex)
+    let _ : unit Lwt.t = Lwt_io.printlf "💀 UNCAUGHT EXCEPTION: %s" (Exn.to_string ex)
       >>= (fun () -> exit 2)
     in
     ()

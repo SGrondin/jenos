@@ -1,138 +1,107 @@
 open! Core_kernel
-open Websocket
 
-type respond = Message.Send.t -> unit Lwt.t
+module Open = struct
+  let (>>>) f x = Lwt.map (fun () -> x) f
 
-module type S = sig
-  type t
-
-  val on_exn : exn -> unit Lwt.t
-
-  val before_action : respond:respond -> t -> Message.Recv.t -> t Lwt.t
-  val after_action : respond:respond -> t -> Message.Recv.t -> t Lwt.t
-end
-
-module Make (Bot : S) = struct
-
-  type state = {
+  type 'a state = {
     internal_state: Internal_state.t;
-    user_state: Bot.t;
+    user_state: 'a;
   }
 
-  exception Reconnect of state
-  exception Reidentify of state
+  type 'a action =
+  | Forward of 'a state
+  | Reconnect of 'a state
+  | Reidentify of 'a state
 
-  let close_timeout ?(timeout = 1.0) ~code send =
-    Lwt_unix.with_timeout timeout (fun () ->
-      let%lwt () = Lwt_io.printl "⏹️ Closing connection..." in
-      send @@ Frame.close code
-    )
-
-  let run_handler handler ~respond user_state msg =
-    Lwt.catch (fun () -> handler ~respond user_state msg)
-      (fun exn ->
-          let%lwt () = Bot.on_exn exn in
-          Lwt.return user_state
-      )
-
-  let send_response send message =
-    let content = Message.Send.to_yojson message |> Yojson.Safe.to_string in
-    Frame.create ~opcode:Frame.Opcode.Text ~content ()
-    |> send
-
-  let identify (config : Config.t) send =
-    let open Commands in
-    Identify.{
-      token = config.token;
-      properties = {
-        os = "UNIX";
-        browser = Rest.Call.name;
-        device = Rest.Call.name;
-      };
-      compress = false;
-      presence = {
-        since = None;
-        activities = Some [config.activity];
-        status = config.status;
-        afk = config.afk;
-      };
-      guild_subscriptions = false;
-      intents = config.intents;
-    }
-    |> Identify.to_message
-    |> send_response send
-
-  let handle_message (config : Config.t) send { internal_state; user_state } (msg : Message.Recv.t) =
-
-    let respond = send_response send in
-    (* BEFORE_ACTION *)
-    let%lwt user_state = run_handler Bot.before_action ~respond user_state msg in
-    (* ACTION *)
-    let%lwt updated_internal_state = begin match msg with
-    | { op = Hello; d; _ } ->
-      let hello = Events.Hello.of_yojson_exn d in
-      let%lwt () =
-        let open Commands in
-        begin match Internal_state.session_id internal_state with
-        | Some id ->
-          (* Resume session *)
-          Resume.{
-            token = config.token;
-            session_id = id;
-            seq = Internal_state.seq internal_state;
-          }
-          |> Resume.to_message
-          |> respond
-        | None ->
-          (* New session *)
-          identify config send
-        end
-      in
-      let heartbeat_interval = hello.heartbeat_interval in
-      let close ack count =
-        let%lwt () = Lwt_io.printlf "❌ Discontinuity error: ACK = %d but HB = %d. Closing the connection" ack count in
-        close_timeout ~code:1002 send
-      in
-      Internal_state.received_hello ~heartbeat_interval respond close internal_state
-      |> Lwt.return
-
-    | { op = Heartbeat; _ } ->
-      let%lwt () = Commands.Heartbeat_ACK.to_message |> respond in
-      Lwt.return internal_state
-
-    | { op = Heartbeat_ACK; _ } ->
-      Internal_state.received_ack internal_state;
-      Lwt.return internal_state
-
-    | { op = Invalid_session; d; _ } ->
-      let resumable = Events.Invalid_session.of_yojson_exn d in
-      if resumable
-      then raise (Reidentify { internal_state; user_state })
-      else raise (Reconnect { internal_state; user_state })
-
-    | { op = Dispatch; t = Some "READY"; s = _; d } ->
-      let ready = Events.Ready.of_yojson_exn d in
-      Internal_state.received_ready ~session_id:ready.session_id internal_state
-      |> Lwt.return
-
-    | { op = Dispatch; _ } ->
-      Lwt.return internal_state
-
-    | { op = Reconnect; _ } ->
-      raise (Reconnect { internal_state; user_state })
-
-    | ({ op = Identify; _ } as x)
-    | ({ op = Presence_update; _ } as x)
-    | ({ op = Voice_state_update; _ } as x)
-    | ({ op = Resume; _ } as x)
-    | ({ op = Request_guild_members; _ } as x) ->
-      failwithf "Unexpected opcode: %s. Please report this bug." ([%sexp_of: Message.Recv.t] x |> Sexp.to_string) ()
-    end
-    in
-    (* AFTER_ACTION *)
-    let%lwt user_state = run_handler Bot.after_action ~respond user_state msg in
-    Lwt.return {
-      internal_state = updated_internal_state;
-      user_state;
-    }
+  let forward state = Lwt.return (Forward state)
+  let reconnect state = Lwt.return (Reconnect state)
+  let reidentify state = Lwt.return (Reidentify state)
 end
+
+open Open
+
+let send_response send message =
+  let content = Message.Send.to_yojson message |> Yojson.Safe.to_string in
+  Websocket.Frame.create ~opcode:Text ~content ()
+  |> send
+
+let identify (config : Config.t) send =
+  let open Commands in
+  Identify.{
+    token = config.token;
+    properties = {
+      os = "UNIX";
+      browser = Rest.Call.name;
+      device = Rest.Call.name;
+    };
+    compress = false;
+    presence = {
+      since = None;
+      activities = Some [config.activity];
+      status = config.status;
+      afk = config.afk;
+    };
+    guild_subscriptions = false;
+    intents = config.intents;
+  }
+  |> Identify.to_message
+  |> send_response send
+
+let resume (config : Config.t) send internal_state id =
+  let open Commands in
+  Resume.{
+    token = config.token;
+    session_id = id;
+    seq = Internal_state.seq internal_state;
+  }
+  |> Resume.to_message
+  |> send_response send
+
+let handle_message (config : Config.t) ~send ~close ~on_exn ({ internal_state; user_state } as state) = function
+| Message.Recv.{ op = Hello; d; _ } ->
+  let hello = Events.Hello.of_yojson_exn d in
+  let%lwt () = begin match Internal_state.session_id internal_state with
+  | Some id -> resume config send internal_state id
+  | None -> identify config send
+  end
+  in
+  let heartbeat_loop = Internal_state.{
+      on_exn;
+      interval = hello.heartbeat_interval;
+      respond = send_response send;
+      close;
+    }
+  in
+  let internal_state = Internal_state.received_hello heartbeat_loop internal_state in
+  forward { internal_state; user_state }
+
+| { op = Heartbeat; _ } ->
+  let%lwt () = Commands.Heartbeat_ACK.to_message |> send_response send in
+  forward state
+
+| { op = Heartbeat_ACK; _ } ->
+  Internal_state.received_ack internal_state;
+  forward state
+
+| { op = Invalid_session; d; _ } ->
+  if Events.Invalid_session.of_yojson_exn d
+  then reidentify state
+  else reconnect state
+
+| { op = Dispatch; t = Some "READY"; s = _; d } ->
+  let Events.Ready.{ session_id; _ } = Events.Ready.of_yojson_exn d in
+  let internal_state = Internal_state.received_ready ~session_id internal_state in
+  forward { internal_state; user_state }
+
+| { op = Dispatch; _ } ->
+  forward state
+
+| { op = Reconnect; _ } ->
+  reconnect state
+
+| ({ op = Identify; _ } as x)
+| ({ op = Presence_update; _ } as x)
+| ({ op = Voice_state_update; _ } as x)
+| ({ op = Resume; _ } as x)
+| ({ op = Request_guild_members; _ } as x) ->
+  failwithf "Unexpected opcode: %s. Please report this bug." ([%sexp_of: Message.Recv.t] x |> Sexp.to_string) ()
