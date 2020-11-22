@@ -18,7 +18,7 @@ type heartbeat_loop = {
 let rec loop heartbeat ({ on_exn; respond; close; interval } as heartbeat_loop) =
   let%lwt () = Lwt_unix.sleep (interval // 1000) in
   if heartbeat.until then Lwt.return_unit else begin
-    Lwt.async (fun () ->
+    let%lwt () =
       Lwt.catch (fun () ->
         if heartbeat.ack < heartbeat.count
         then close ~ack:heartbeat.ack ~count:heartbeat.count
@@ -27,7 +27,7 @@ let rec loop heartbeat ({ on_exn; respond; close; interval } as heartbeat_loop) 
           respond @@ Commands.Heartbeat.to_message heartbeat.seq
         end
       ) on_exn
-    );
+    in
     loop heartbeat heartbeat_loop
   end
 

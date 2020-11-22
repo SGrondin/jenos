@@ -5,7 +5,7 @@
     rest
 
     cohttp-lwt-unix
-    core_kernel
+    core
     lwt
     lwt.unix
     ppx_deriving_yojson.runtime

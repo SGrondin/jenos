@@ -135,15 +135,16 @@ let create_bot config =
 
       let on_exn exn = Lwt_io.printlf "❌ Unexpected error: %s" (Exn.to_string exn)
 
-      let on_background_event = function
+      let on_event = function
       | Closing_connection Final -> Lwt_io.printl "⏹️ Closing connection (Final)..."
       | Closing_connection Unexpected -> Lwt_io.printl "⏹️ Closing connection (Unexpected)..."
       | Closing_connection Reconnecting -> Lwt_io.printl "⏹️ Closing connection (Reconnecting)..."
       | Discontinuity_error { heartbeat; ack } -> Lwt_io.printlf "❌ Discontinuity error: ACK = %d but HB = %d. Closing the connection" ack heartbeat
 
-      let on_lifecycle_event ({ tracker } as state) = function
-      | Connection_lost -> Lwt_io.printl "🔌 Connection was closed." >>> state
-      | Discord_websocket_issue { extension; final; content } ->
+      let on_transition ({ tracker } as state) = function
+      | Error_connection_closed -> Lwt_io.printl "🔌 Connection was closed." >>> state
+      | Error_connection_reset -> Lwt_io.printl "❗ Connection was reset." >>> state
+      | Error_discord_server { extension; final; content } ->
         Lwt_io.printlf "⚠️ Received a Close frame. extension: %d. final: %b. content: %s"
           extension final Sexp.(to_string (Atom content))
         >>> state

@@ -5,17 +5,18 @@ type close =
 | Final
 | Unexpected
 
-type background_event =
+type event =
 | Closing_connection of close
 | Discontinuity_error of { heartbeat: int; ack: int}
 
-type lifecycle_event =
+type transition =
 | Before_action of Message.Recv.t
 | After_action of Message.Recv.t
 | Before_reidentifying
 | Before_reconnecting
-| Connection_lost
-| Discord_websocket_issue of { extension: int; final: bool; content: string }
+| Error_connection_closed
+| Error_connection_reset
+| Error_discord_server of { extension: int; final: bool; content: string }
 
 let in_background ~on_exn f = Lwt.async (fun () -> Lwt.catch f on_exn)
 
@@ -24,8 +25,8 @@ module type S = sig
 
   val create : unit -> t
   val on_exn : exn -> unit Lwt.t
-  val on_background_event : background_event -> unit Lwt.t
-  val on_lifecycle_event : t -> lifecycle_event -> t Lwt.t
+  val on_event : event -> unit Lwt.t
+  val on_transition : t -> transition -> t Lwt.t
 end
 
 module Make (Bot : S) : sig
@@ -35,24 +36,22 @@ end = struct
   open Router.Open
 
   let run_handler user_state event =
-    Lwt.catch (fun () -> Bot.on_lifecycle_event user_state event)
+    Lwt.catch (fun () -> Bot.on_transition user_state event)
       (fun exn -> Bot.on_exn exn >>> user_state)
 
-  let close_timeout ?(timeout = 1.0) send close =
+  let close_connection send close =
     let code = begin match close with
     | Reconnecting -> 1002
     | Final -> 1000
     | Unexpected -> 1001
     end
     in
-    let%lwt () = Bot.on_background_event (Closing_connection close) in
-    Lwt_unix.with_timeout timeout (fun () ->
-      send @@ Websocket.Frame.close code
-    )
+    let%lwt () = Bot.on_event (Closing_connection close) in
+    send @@ Websocket.Frame.close code
 
   let shutdown = ref None
   let make_shutdown send () =
-    Lwt_main.at_exit (fun () -> close_timeout send Final);
+    Lwt_main.at_exit (fun () -> close_connection send Final);
     raise Exit
 
   let () =
@@ -69,7 +68,7 @@ end = struct
       forward state
 
     | Frame.{ opcode = Close; extension; final; content } ->
-      let%lwt user_state = Bot.on_lifecycle_event user_state (Discord_websocket_issue { extension; final; content }) in
+      let%lwt user_state = Bot.on_transition user_state (Error_discord_server { extension; final; content }) in
       reconnect { internal_state; user_state }
 
     | Frame.{ opcode = Pong; _ } ->
@@ -81,8 +80,8 @@ end = struct
       let%lwt user_state = run_handler user_state (Before_action message) in
       Internal_state.received_seq message.s internal_state;
       let close ~ack ~count =
-        let%lwt () = Bot.on_background_event (Discontinuity_error { heartbeat = count; ack }) in
-        close_timeout send Reconnecting
+        let%lwt () = Bot.on_event (Discontinuity_error { heartbeat = count; ack }) in
+        close_connection send Reconnecting
       in
       begin match%lwt Router.handle_message config ~send ~close ~on_exn:Bot.on_exn { internal_state; user_state } message with
       | Forward { internal_state; user_state } ->
@@ -104,26 +103,31 @@ end = struct
         event_loop config recv send state
 
       | Reidentify { internal_state; user_state } ->
-        let%lwt user_state = Bot.on_lifecycle_event user_state Before_reidentifying in
+        let%lwt user_state = Bot.on_transition user_state Before_reidentifying in
         let%lwt () = Lwt_unix.sleep (Random.float_range 1.0 5.0) in
         let%lwt () = Router.identify config send in
         event_loop config recv send { internal_state; user_state }
 
       | Reconnect { internal_state; user_state } ->
         Internal_state.terminate internal_state;
-        let%lwt user_state = Bot.on_lifecycle_event user_state Before_reconnecting in
-        close_timeout send Reconnecting
+        let%lwt user_state = Bot.on_transition user_state Before_reconnecting in
+        close_connection send Reconnecting
         >>> { internal_state; user_state }
       end
     ) (function
     | End_of_file ->
       Internal_state.terminate internal_state;
-      let%lwt user_state = Bot.on_lifecycle_event user_state Connection_lost in
+      let%lwt user_state = Bot.on_transition user_state Error_connection_closed in
+      Lwt.return { internal_state; user_state }
+
+    | Core.Unix.Unix_error (Core.Unix.Error.ECONNRESET, _c, _s) ->
+      Internal_state.terminate internal_state;
+      let%lwt user_state = Bot.on_transition user_state Error_connection_reset in
       Lwt.return { internal_state; user_state }
 
     | exn ->
       Internal_state.terminate internal_state;
-      let%lwt () = close_timeout send Unexpected in
+      let%lwt () = close_connection send Unexpected in
       raise exn
     )
 
@@ -145,8 +149,10 @@ end = struct
       Websocket_lwt_unix.with_connection ~ctx client uri
     in
 
-    shutdown := Some (make_shutdown send);
-    event_loop config recv send state
+    let send_timeout frame = Lwt_unix.with_timeout 1.0 (fun () -> send frame) in
+
+    shutdown := Some (make_shutdown send_timeout);
+    event_loop config recv send_timeout state
 
   let blank_state ?(user_state = Bot.create ()) () = {
     internal_state = Internal_state.create ();
