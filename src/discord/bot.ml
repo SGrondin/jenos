@@ -151,6 +151,8 @@ end = struct
           let%lwt user_state = run_handler user_state (Error_discontinuity counter) in
           restart connection (blank_state ~user_state ())
 
+        | (Restart _ as exn) -> raise exn
+
         | Exit ->
           let%lwt () = close_connection connection Final in
           raise Exit
