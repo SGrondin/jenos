@@ -3,20 +3,25 @@ open! Core_kernel
 type close =
 | Reconnecting
 | Final
-| Unexpected
+| Exception of Exn.t
 
 type event =
-| Closing_connection of close
-| Discontinuity_error of { heartbeat: int; ack: int}
-
-type transition =
 | Before_action of Message.Recv.t
 | After_action of Message.Recv.t
 | Before_reidentifying
 | Before_reconnecting
 | Error_connection_closed
 | Error_connection_reset
+| Error_connection_timed_out
 | Error_discord_server of { extension: int; final: bool; content: string }
+| Error_discontinuity of Internal_state.counter
+
+type connection = {
+  ic: Lwt_io.input_channel;
+  oc: Lwt_io.output_channel;
+  send: Websocket.Frame.t -> unit Lwt.t;
+  cancel: Websocket.Frame.t Lwt.u;
+}
 
 let in_background ~on_exn f = Lwt.async (fun () -> Lwt.catch f on_exn)
 
@@ -25,8 +30,8 @@ module type S = sig
 
   val create : unit -> t
   val on_exn : exn -> unit Lwt.t
-  val on_event : event -> unit Lwt.t
-  val on_transition : t -> transition -> t Lwt.t
+  val on_connection_closed : close -> unit Lwt.t
+  val on_event : t -> event -> t Lwt.t
 end
 
 module Make (Bot : S) : sig
@@ -35,23 +40,43 @@ end = struct
 
   open Router.Open
 
-  let run_handler user_state event =
-    Lwt.catch (fun () -> Bot.on_transition user_state event)
-      (fun exn -> Bot.on_exn exn >>> user_state)
+  exception Restart of (connection * Bot.t state)
 
-  let close_connection send close =
-    let code = begin match close with
-    | Reconnecting -> 1002
-    | Final -> 1000
-    | Unexpected -> 1001
-    end
+  let code_of_close = function
+  | Reconnecting -> 4000
+  | Final -> 1000
+  | Exception _ -> 4001
+
+  let restart connection state = raise (Restart (connection, state))
+
+  let blank_state ?(user_state = Bot.create ()) () = {
+    internal_state = Internal_state.create ();
+    user_state;
+  }
+
+  let run_handler user_state event =
+    Lwt.catch (fun () -> Bot.on_event user_state event)
+      Lwt.Infix.(fun exn -> Bot.on_exn exn >|= fun () -> user_state)
+
+  let close_connection { ic; oc; send; cancel = _ } close =
+    let code = code_of_close close in
+    let%lwt () = Bot.on_connection_closed close in
+    let%lwt () =
+      if Lwt_io.is_closed oc
+      then Lwt.return_unit
+      else
+      Lwt.catch (fun () ->
+        Lwt_unix.with_timeout 1.0 (fun () -> send @@ Websocket.Frame.close code))
+        (fun _exn -> Lwt.return_unit)
     in
-    let%lwt () = Bot.on_event (Closing_connection close) in
-    send @@ Websocket.Frame.close code
+    Lwt_unix.with_timeout 1.0 (fun () -> Lwt.join [Lwt_io.close ic; Lwt_io.close oc])
 
   let shutdown = ref None
   let make_shutdown send () =
-    Lwt_main.at_exit (fun () -> close_connection send Final);
+    Lwt_main.at_exit (fun () ->
+      Lwt_unix.with_timeout 1.0 (fun () ->
+        code_of_close Final |> Websocket.Frame.close |> send
+      ));
     raise Exit
 
   let () =
@@ -60,7 +85,7 @@ end = struct
     let _sigterm = Lwt_unix.on_signal Sys.sigterm handler in
     ()
 
-  let handle_frame config send ({ internal_state; user_state } as state) frame =
+  let handle_frame config cancel send ({ internal_state; user_state } as state) frame =
     let open Websocket in
     begin match frame with
     | Frame.{ opcode = Ping; _ } ->
@@ -68,7 +93,7 @@ end = struct
       forward state
 
     | Frame.{ opcode = Close; extension; final; content } ->
-      let%lwt user_state = Bot.on_transition user_state (Error_discord_server { extension; final; content }) in
+      let%lwt user_state = run_handler user_state (Error_discord_server { extension; final; content }) in
       reconnect { internal_state; user_state }
 
     | Frame.{ opcode = Pong; _ } ->
@@ -79,11 +104,7 @@ end = struct
       let message = Yojson.Safe.from_string content |> Message.Recv.of_yojson_exn in
       let%lwt user_state = run_handler user_state (Before_action message) in
       Internal_state.received_seq message.s internal_state;
-      let close ~ack ~count =
-        let%lwt () = Bot.on_event (Discontinuity_error { heartbeat = count; ack }) in
-        close_connection send Reconnecting
-      in
-      begin match%lwt Router.handle_message config ~send ~close ~on_exn:Bot.on_exn { internal_state; user_state } message with
+      begin match%lwt Router.handle_message config ~send ~cancel { internal_state; user_state } message with
       | Forward { internal_state; user_state } ->
         let%lwt user_state = run_handler user_state (After_action message) in
         forward { internal_state; user_state }
@@ -94,42 +115,53 @@ end = struct
       failwithf "Unhandled frame: %s" (Frame.show frame) ()
     end
 
-  (* The event loop is the only place that can close connections except for the heartbeat *)
-  let rec event_loop config recv send ({ internal_state; user_state } as state) =
-    Lwt.catch (fun () ->
-      let%lwt frame = recv () in
-      begin match%lwt handle_frame config send state frame with
-      | Forward state ->
-        event_loop config recv send state
+  let rec event_loop config connection recv ({ internal_state; user_state } as state) =
+    let%lwt state = Lwt.catch (fun () ->
+        let%lwt frame = recv () in
+        begin match%lwt handle_frame config connection.cancel connection.send state frame with
+        | Forward state -> Lwt.return state
 
-      | Reidentify { internal_state; user_state } ->
-        let%lwt user_state = Bot.on_transition user_state Before_reidentifying in
-        let%lwt () = Lwt_unix.sleep (Random.float_range 1.0 5.0) in
-        let%lwt () = Router.identify config send in
-        event_loop config recv send { internal_state; user_state }
+        | Reidentify { internal_state; user_state } ->
+          let%lwt user_state = run_handler user_state Before_reidentifying in
+          let%lwt () = Lwt_unix.sleep (Random.float_range 1.0 5.0) in
+          let%lwt () = Router.identify config connection.send in
+          Lwt.return { internal_state; user_state }
 
-      | Reconnect { internal_state; user_state } ->
+        | Reconnect { internal_state; user_state } ->
+          Internal_state.terminate internal_state;
+          let%lwt user_state = run_handler user_state Before_reconnecting in
+          restart connection { internal_state; user_state }
+        end
+      ) (fun exn ->
         Internal_state.terminate internal_state;
-        let%lwt user_state = Bot.on_transition user_state Before_reconnecting in
-        close_connection send Reconnecting
-        >>> { internal_state; user_state }
-      end
-    ) (function
-    | End_of_file ->
-      Internal_state.terminate internal_state;
-      let%lwt user_state = Bot.on_transition user_state Error_connection_closed in
-      Lwt.return { internal_state; user_state }
+        begin match exn with
+        | End_of_file ->
+          let%lwt user_state = run_handler user_state Error_connection_closed in
+          restart connection { internal_state; user_state }
 
-    | Core.Unix.Unix_error (Core.Unix.Error.ECONNRESET, _c, _s) ->
-      Internal_state.terminate internal_state;
-      let%lwt user_state = Bot.on_transition user_state Error_connection_reset in
-      Lwt.return { internal_state; user_state }
+        | Core.Unix.Unix_error (Core.Unix.Error.ECONNRESET, _c, _s) ->
+          let%lwt user_state = run_handler user_state Error_connection_reset in
+          restart connection { internal_state; user_state }
 
-    | exn ->
-      Internal_state.terminate internal_state;
-      let%lwt () = close_connection send Unexpected in
-      raise exn
-    )
+        | Core.Unix.Unix_error (Core.Unix.Error.ETIMEDOUT, _c, _s) ->
+          let%lwt user_state = run_handler user_state Error_connection_timed_out in
+          restart connection { internal_state; user_state }
+
+        | Internal_state.Discontinuity_error counter ->
+          let%lwt user_state = run_handler user_state (Error_discontinuity counter) in
+          restart connection (blank_state ~user_state ())
+
+        | Exit ->
+          let%lwt () = close_connection connection Final in
+          raise Exit
+
+        | exn ->
+          let%lwt () = close_connection connection (Exception exn) in
+          raise exn
+        end
+      )
+    in
+    event_loop config connection recv state
 
   let connect config state uri =
     let uri =
@@ -142,33 +174,38 @@ end = struct
       |> Fn.flip Uri.add_query_params ["v", ["8"]; "encoding", ["json"]]
     in
 
-    let%lwt recv, send =
+    let%lwt recv, send, ic, oc =
       let%lwt endp = Resolver_lwt.resolve_uri ~uri Resolver_lwt_unix.system in
       let ctx = Conduit_lwt_unix.default_ctx in
       let%lwt client = Conduit_lwt_unix.endp_to_client ~ctx endp in
-      Websocket_lwt_unix.with_connection ~ctx client uri
+      Ws.with_connection ~ctx client uri
     in
 
+    let cancel_p, cancel = Lwt.wait () in
+    let cancelable_recv () = Lwt.choose [cancel_p; recv ()] in
     let send_timeout frame = Lwt_unix.with_timeout 1.0 (fun () -> send frame) in
 
-    shutdown := Some (make_shutdown send_timeout);
-    event_loop config recv send_timeout state
+    let connection = { ic; oc; send = send_timeout; cancel } in
 
-  let blank_state ?(user_state = Bot.create ()) () = {
-    internal_state = Internal_state.create ();
-    user_state;
-  }
+    shutdown := Some (make_shutdown send_timeout);
+    event_loop config connection cancelable_recv state
 
   let rec connection_loop (config : Config.t) state =
     let%lwt res = Rest.Gateway.get ~token:config.token in
-    Lwt.catch (fun () ->
-      let%lwt state = connect config state res.url in
-      connection_loop config state
-    ) (fun exn ->
-      let%lwt () = Bot.on_exn exn in
-      let%lwt () = Lwt_unix.sleep 5.0 in
-      connection_loop config (blank_state ())
-    )
+    let%lwt state = Lwt.catch (fun () ->
+        connect config state res.url
+      ) (function
+      | Restart (connection, state) ->
+        let%lwt () = close_connection connection Reconnecting in
+        Lwt.return state
+      | Exit -> raise Exit
+      | exn ->
+        let%lwt () = Bot.on_exn exn in
+        let%lwt () = Lwt_unix.sleep 5.0 in
+        Lwt.return (blank_state ())
+      )
+    in
+    connection_loop config state
 
   let start config = connection_loop config (blank_state ())
 

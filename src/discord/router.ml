@@ -1,8 +1,6 @@
 open! Core_kernel
 
 module Open = struct
-  let (>>>) f x = Lwt.map (fun () -> x) f
-
   type 'a state = {
     internal_state: Internal_state.t;
     user_state: 'a;
@@ -57,7 +55,7 @@ let resume (config : Config.t) send internal_state id =
   |> Resume.to_message
   |> send_response send
 
-let handle_message (config : Config.t) ~send ~close ~on_exn ({ internal_state; user_state } as state) = function
+let handle_message (config : Config.t) ~send ~cancel ({ internal_state; user_state } as state) = function
 | Message.Recv.{ op = Hello; d; _ } ->
   let hello = Events.Hello.of_yojson_exn d in
   let%lwt () = begin match Internal_state.session_id internal_state with
@@ -66,10 +64,9 @@ let handle_message (config : Config.t) ~send ~close ~on_exn ({ internal_state; u
   end
   in
   let heartbeat_loop = Internal_state.{
-      on_exn;
       interval = hello.heartbeat_interval;
       respond = send_response send;
-      close;
+      cancel;
     }
   in
   let internal_state = Internal_state.received_hello heartbeat_loop internal_state in

@@ -1,5 +1,9 @@
 open! Core_kernel
 
+type counter = { count: int; ack: int }
+
+exception Discontinuity_error of counter
+
 type heartbeat = {
   mutable until: bool;
   mutable seq: int option;
@@ -9,24 +13,29 @@ type heartbeat = {
 [@@deriving sexp]
 
 type heartbeat_loop = {
-  on_exn: exn -> unit Lwt.t;
   interval: int;
   respond: Message.Send.t -> unit Lwt.t;
-  close: ack:int -> count:int -> unit Lwt.t;
+  cancel: Websocket.Frame.t Lwt.u;
 }
 
-let rec loop heartbeat ({ on_exn; respond; close; interval } as heartbeat_loop) =
+let rec loop heartbeat ({ respond; cancel; interval } as heartbeat_loop) =
   let%lwt () = Lwt_unix.sleep (interval // 1000) in
   if heartbeat.until then Lwt.return_unit else begin
     let%lwt () =
       Lwt.catch (fun () ->
         if heartbeat.ack < heartbeat.count
-        then close ~ack:heartbeat.ack ~count:heartbeat.count
+        then raise (Discontinuity_error {
+            count = heartbeat.count;
+            ack = heartbeat.ack;
+          })
         else begin
           heartbeat.count <- heartbeat.count + 1;
           respond @@ Commands.Heartbeat.to_message heartbeat.seq
         end
-      ) on_exn
+      ) (fun exn ->
+        Lwt.wakeup_later_exn cancel exn;
+        Lwt.return_unit
+      )
     in
     loop heartbeat heartbeat_loop
   end

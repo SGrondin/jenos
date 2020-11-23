@@ -135,18 +135,21 @@ let create_bot config =
 
       let on_exn exn = Lwt_io.printlf "❌ Unexpected error: %s" (Exn.to_string exn)
 
-      let on_event = function
-      | Closing_connection Final -> Lwt_io.printl "⏹️ Closing connection (Final)..."
-      | Closing_connection Unexpected -> Lwt_io.printl "⏹️ Closing connection (Unexpected)..."
-      | Closing_connection Reconnecting -> Lwt_io.printl "⏹️ Closing connection (Reconnecting)..."
-      | Discontinuity_error { heartbeat; ack } -> Lwt_io.printlf "❌ Discontinuity error: ACK = %d but HB = %d. Closing the connection" ack heartbeat
+      let on_connection_closed = function
+      | Final -> Lwt_io.printl "⏹️ Closing connection (Final)..."
+      | Exception exn -> Lwt_io.printlf "⏹️ Closing connection (Exception %s)..." (Exn.to_string exn)
+      | Reconnecting -> Lwt_io.printl "⏹️ Closing connection (Reconnecting)..."
 
-      let on_transition ({ tracker } as state) = function
+      let on_event ({ tracker } as state) = function
       | Error_connection_closed -> Lwt_io.printl "🔌 Connection was closed." >>> state
       | Error_connection_reset -> Lwt_io.printl "❗ Connection was reset." >>> state
+      | Error_connection_timed_out -> Lwt_io.printl "⏱️ Connection timed out." >>> state
       | Error_discord_server { extension; final; content } ->
         Lwt_io.printlf "⚠️ Received a Close frame. extension: %d. final: %b. content: %s"
           extension final Sexp.(to_string (Atom content))
+        >>> state
+      | Error_discontinuity { count; ack } ->
+        Lwt_io.printlf "❌ Discontinuity error: ACK = %d but COUNT = %d. Closing the connection" ack count
         >>> state
       | Before_reidentifying -> Lwt_io.printl "⏯️ Resuming..." >>> state
       | Before_reconnecting -> Lwt_io.printl "🌐 Reconnecting..." >>> state

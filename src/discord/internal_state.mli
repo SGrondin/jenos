@@ -1,12 +1,15 @@
 open! Core_kernel
 
+type counter = { count: int; ack: int }
+
+exception Discontinuity_error of counter
+
 type t
 
 type heartbeat_loop = {
-  on_exn: exn -> unit Lwt.t;
   interval: int;
   respond: Message.Send.t -> unit Lwt.t;
-  close: ack:int -> count:int -> unit Lwt.t;
+  cancel: Websocket.Frame.t Lwt.u;
 }
 
 val create : unit -> t
