@@ -134,16 +134,17 @@ end = struct
         end
       ) (fun exn ->
         Internal_state.terminate internal_state;
+        let open Core in
         begin match exn with
         | End_of_file ->
           let%lwt user_state = run_handler user_state Error_connection_closed in
           restart connection { internal_state; user_state }
 
-        | Core.Unix.Unix_error (Core.Unix.Error.ECONNRESET, _c, _s) ->
+        | Unix.Unix_error (Unix.ECONNRESET, _c, _s) ->
           let%lwt user_state = run_handler user_state Error_connection_reset in
           restart connection { internal_state; user_state }
 
-        | Core.Unix.Unix_error (Core.Unix.Error.ETIMEDOUT, _c, _s) ->
+        | Unix.Unix_error (Unix.ETIMEDOUT, _c, _s) ->
           let%lwt user_state = run_handler user_state Error_connection_timed_out in
           restart connection { internal_state; user_state }
 
@@ -158,6 +159,13 @@ end = struct
           raise Exit
 
         | exn ->
+          let%lwt () =
+            Backtrace.get ()
+            |> Backtrace.to_string_list
+            |> [%sexp_of: string list]
+            |> Sexp.to_string
+            |> Lwt_io.printlf "!!! %s"
+          in
           let%lwt () = close_connection connection (Exception exn) in
           raise exn
         end
