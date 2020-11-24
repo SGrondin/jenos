@@ -1,10 +1,10 @@
-(executable
-  (name app)
+(library
+  (name jenos)
+  (inline_tests)
   (libraries
-    jenos
-
-    core
     discord
+    angstrom
+    core
     lwt
     ppx_deriving_yojson.runtime
   )
@@ -14,5 +14,4 @@
     ppx_deriving_yojson
     ppx_deriving.enum
   ))
-  (modes exe)
 )

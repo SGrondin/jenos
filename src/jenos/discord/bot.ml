@@ -35,7 +35,7 @@ module type S = sig
 end
 
 module Make (Bot : S) : sig
-  val start : Config.t -> unit Lwt.t
+  val start : Login.t -> unit Lwt.t
 end = struct
 
   open Router.Open
@@ -85,7 +85,7 @@ end = struct
     let _sigterm = Lwt_unix.on_signal Sys.sigterm handler in
     ()
 
-  let handle_frame config cancel send ({ internal_state; user_state } as state) frame =
+  let handle_frame login cancel send ({ internal_state; user_state } as state) frame =
     let open Websocket in
     begin match frame with
     | Frame.{ opcode = Ping; _ } ->
@@ -104,7 +104,7 @@ end = struct
       let message = Yojson.Safe.from_string content |> Message.Recv.of_yojson_exn in
       let%lwt user_state = run_handler user_state (Before_action message) in
       Internal_state.received_seq message.s internal_state;
-      begin match%lwt Router.handle_message config ~send ~cancel { internal_state; user_state } message with
+      begin match%lwt Router.handle_message login ~send ~cancel { internal_state; user_state } message with
       | Forward { internal_state; user_state } ->
         let%lwt user_state = run_handler user_state (After_action message) in
         forward { internal_state; user_state }
@@ -115,16 +115,16 @@ end = struct
       failwithf "Unhandled frame: %s" (Frame.show frame) ()
     end
 
-  let rec event_loop config connection recv ({ internal_state; user_state } as state) =
+  let rec event_loop login connection recv ({ internal_state; user_state } as state) =
     let%lwt state = Lwt.catch (fun () ->
         let%lwt frame = recv () in
-        begin match%lwt handle_frame config connection.cancel connection.send state frame with
+        begin match%lwt handle_frame login connection.cancel connection.send state frame with
         | Forward state -> Lwt.return state
 
         | Reidentify { internal_state; user_state } ->
           let%lwt user_state = run_handler user_state Before_reidentifying in
           let%lwt () = Lwt_unix.sleep (Random.float_range 1.0 5.0) in
-          let%lwt () = Router.identify config connection.send in
+          let%lwt () = Router.identify login connection.send in
           Lwt.return { internal_state; user_state }
 
         | Reconnect { internal_state; user_state } ->
@@ -163,9 +163,9 @@ end = struct
         end
       )
     in
-    event_loop config connection recv state
+    event_loop login connection recv state
 
-  let connect config state uri =
+  let connect login state uri =
     let uri =
       begin match Uri.scheme uri with
       | None
@@ -190,12 +190,12 @@ end = struct
     let connection = { ic; oc; send = send_timeout; cancel } in
 
     shutdown := Some (make_shutdown send_timeout);
-    event_loop config connection cancelable_recv state
+    event_loop login connection cancelable_recv state
 
-  let rec connection_loop (config : Config.t) state =
-    let%lwt res = Rest.Gateway.get ~token:config.token in
+  let rec connection_loop (login : Login.t) state =
+    let%lwt res = Rest.Gateway.get ~token:login.token in
     let%lwt state = Lwt.catch (fun () ->
-        connect config state res.url
+        connect login state res.url
       ) (function
       | Restart (connection, state) ->
         let%lwt () = close_connection connection Reconnecting in
@@ -207,8 +207,8 @@ end = struct
         Lwt.return (blank_state ())
       )
     in
-    connection_loop config state
+    connection_loop login state
 
-  let start config = connection_loop config (blank_state ())
+  let start login = connection_loop login (blank_state ())
 
 end

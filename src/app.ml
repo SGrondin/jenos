@@ -9,12 +9,13 @@ let () = Lwt.async_exception_hook := (fun ex ->
   )
 
 let get_print_config filename =
+  let open Jenos__ in
   let%lwt config = Lwt_io.with_file ~flags:Unix.[O_RDONLY; O_NONBLOCK] ~mode:Input filename (fun ic ->
       let%lwt str = Lwt_io.read ic in
-      Yojson.Safe.from_string str |> Jenos.config_of_yojson_exn |> Lwt.return
+      Yojson.Safe.from_string str |> Config.of_yojson_exn |> Lwt.return
     )
   in
-  let%lwt () = Lwt_io.printl (Jenos.sexp_of_config config |> Sexp.to_string_hum) in
+  let%lwt () = Lwt_io.printl (Config.sexp_of_t config |> Sexp.to_string_hum) in
   Lwt.return config
 
 let () =
@@ -34,7 +35,7 @@ let () =
           else default_filename
         in
         let%lwt config = get_print_config filename in
-        Discord.Config.(create
+        Discord.Login.(create
             ~token:config.token
             ~intents:[GUILDS; GUILD_VOICE_STATES; GUILD_MESSAGES]
             ?activity:config.status

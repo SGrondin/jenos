@@ -13,7 +13,7 @@ module Identify = struct
   | Streaming of string
   | Listening of string
   | Competing of string
-  [@@deriving sexp, show]
+  [@@deriving sexp]
   let activity_to_yojson activity : Yojson.Safe.t =
     let name, type_ = begin match activity with
     | Game s -> s, 0

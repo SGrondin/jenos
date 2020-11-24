@@ -23,10 +23,9 @@ let send_response send message =
   Websocket.Frame.create ~opcode:Text ~content ()
   |> send
 
-let identify (config : Config.t) send =
-  let open Commands in
-  Identify.{
-    token = config.token;
+let identify ({ token; activity; status; afk; intents } : Login.t) send =
+  {
+    token;
     properties = {
       os = "UNIX";
       browser = Rest.Call.name;
@@ -35,32 +34,31 @@ let identify (config : Config.t) send =
     compress = false;
     presence = {
       since = None;
-      activities = Some [config.activity];
-      status = config.status;
-      afk = config.afk;
+      activities = Some [activity];
+      status;
+      afk;
     };
     guild_subscriptions = false;
-    intents = config.intents;
+    intents;
   }
-  |> Identify.to_message
+  |> Commands.Identify.to_message
   |> send_response send
 
-let resume (config : Config.t) send internal_state id =
-  let open Commands in
-  Resume.{
-    token = config.token;
-    session_id = id;
+let resume ({ token; _ } : Login.t) send internal_state session_id =
+  {
+    token;
+    session_id;
     seq = Internal_state.seq internal_state;
   }
-  |> Resume.to_message
+  |> Commands.Resume.to_message
   |> send_response send
 
-let handle_message (config : Config.t) ~send ~cancel ({ internal_state; user_state } as state) = function
+let handle_message (login : Login.t) ~send ~cancel ({ internal_state; user_state } as state) = function
 | Message.Recv.{ op = Hello; d; _ } ->
   let hello = Events.Hello.of_yojson_exn d in
   let%lwt () = begin match Internal_state.session_id internal_state with
-  | Some id -> resume config send internal_state id
-  | None -> identify config send
+  | Some id -> resume login send internal_state id
+  | None -> identify login send
   end
   in
   let heartbeat_loop = Internal_state.{

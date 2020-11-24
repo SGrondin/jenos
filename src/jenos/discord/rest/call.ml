@@ -31,40 +31,38 @@ let make_uri ?(uri = base_uri) ll =
   |> String.concat ~sep:"/"
   |> Uri.with_path uri
 
-let latch = Latch.(create ~cooldown:Int64.(300L * Time.ms))
+let latch = Latch.(create ~cooldown:Int64.(400L * Time.ms))
 
 type _ handler =
 | JSON : Yojson.Safe.t handler
 | Ignore : unit handler
-| Print : unit handler
 | Parse : (Yojson.Safe.t -> 'a) -> 'a handler
 
-let run : type a. headers:Header.t -> ?expect:int -> ?body:Body.t -> Code.meth -> Uri.t -> a handler -> a Lwt.t =
-  fun ~headers ?(expect = 200) ?body meth uri handler ->
+let run : type a. headers:Header.t -> ?expect:int -> ?body:Body.t -> Code.meth -> Uri.t -> ?print_body:bool -> a handler -> a Lwt.t =
+  fun ~headers ?(expect = 200) ?body meth uri ?(print_body = false) handler ->
   let%lwt () = Latch.wait_and_trigger latch in
   let%lwt res, res_body = Client.call ~headers ?body meth uri in
   let status = Response.status res in
-  let get_body_str () =
-    let%lwt body_str = Body.to_string res_body in
-    let%lwt () = Lwt_io.printl body_str in
-    Lwt.return body_str
+  let get_body_str = lazy (Body.to_string res_body) in
+  let%lwt () =
+    if print_body
+    then force get_body_str >>= Lwt_io.printl
+    else Lwt.return_unit
   in
   begin match Code.code_of_status status with
   | code when code = expect ->
     let handle : a Lwt.t = begin match handler with
     | JSON ->
-      get_body_str () >|= Yojson.Safe.from_string
+      force get_body_str >|= Yojson.Safe.from_string
     | Ignore ->
       Body.drain_body res_body
-    | Print ->
-      get_body_str () >|= ignore
     | Parse f ->
-      get_body_str () >|= Yojson.Safe.from_string >|= f
+      force get_body_str >|= Yojson.Safe.from_string >|= f
     end
     in
     handle
   | _ ->
-    let%lwt body_str = get_body_str () in
+    let%lwt body_str = force get_body_str in
     failwithf "Invalid HTTP response (%s)\n%s\n%s"
       (Code.string_of_status status) (Response.headers res |> Header.to_string) body_str ()
   end
