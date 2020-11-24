@@ -1,4 +1,4 @@
-FROM asemio/mountain-caravan:1.0.0 AS build
+FROM asemio/mountain-caravan:1.0.1 AS build
 WORKDIR /app
 RUN sudo apk update \
   && sudo apk add --no-cache perl cmake gmp-dev
