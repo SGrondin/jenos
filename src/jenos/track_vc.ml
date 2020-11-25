@@ -62,8 +62,8 @@ let vc_member_change { token; text_channel = channel_id; line2; line4; threshold
   in
   let buf = Buffer.create 64 in
   begin match change with
-  | VSU member when before < after -> bprintf buf "📈 %s\n" (nick_opt member)
-  | VSU member when before > after -> bprintf buf "📉 %s\n" (nick_opt member)
+  | VSU member when before < after -> bprintf buf "📈 %s " (nick_opt member)
+  | VSU member when before > after -> bprintf buf "📉 %s " (nick_opt member)
   | VSU _
   | GC [] -> ()
   | GC ll ->
@@ -72,10 +72,10 @@ let vc_member_change { token; text_channel = channel_id; line2; line4; threshold
     |> bprintf buf "%s\n"
   end;
   if after <> before
-  then bprintf buf "Current count: %d\n" after;
+  then bprintf buf "Current count: %d" after;
   let%lwt () =
     if Buffer.length buf > 0
-    then Lwt_io.print (Buffer.contents buf)
+    then Lwt_io.printl (Buffer.contents buf)
     else Lwt.return_unit
   in
   if after > before && not just_started

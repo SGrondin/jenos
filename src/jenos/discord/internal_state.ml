@@ -37,7 +37,7 @@ let rec loop heartbeat ({ respond; cancel; interval } as heartbeat_loop) =
         Lwt.return_unit
       )
     in
-    loop heartbeat heartbeat_loop
+    (loop [@tailcall]) heartbeat heartbeat_loop
   end
 
 let start_heartbeat heartbeat_loop ~seq =

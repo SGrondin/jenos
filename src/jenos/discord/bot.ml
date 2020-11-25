@@ -128,7 +128,7 @@ let rec event_loop ~trigger_event login connection recv ({ internal_state; user_
   in
   begin match action with
   | Forward state ->
-    event_loop ~trigger_event login connection recv state
+    (event_loop [@tailcall]) ~trigger_event login connection recv state
   | x -> Lwt.return x
   end
 
@@ -190,7 +190,7 @@ let rec connection_loop ~trigger_event ~on_exn ~close_connection (login : Login.
   in
   begin match state with
   | (Some _ as state) ->
-    connection_loop ~trigger_event ~on_exn ~close_connection login blank_state state
+    (connection_loop [@tailcall]) ~trigger_event ~on_exn ~close_connection login blank_state state
   | None -> Lwt.return_unit
   end
 
