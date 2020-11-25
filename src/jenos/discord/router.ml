@@ -6,17 +6,17 @@ module Open = struct
     user_state: 'a;
   }
 
-  type 'a action =
-  | Forward of 'a state
-  | Reconnect of 'a state
-  | Reidentify of 'a state
-
-  let forward state = Lwt.return (Forward state)
-  let reconnect state = Lwt.return (Reconnect state)
-  let reidentify state = Lwt.return (Reidentify state)
+  type 'a router_action =
+  | R_Forward of 'a state
+  | R_Reconnect of 'a state
+  | R_Reidentify of 'a state
 end
 
 open Open
+
+let forward state = Lwt.return (R_Forward state)
+let reconnect state = Lwt.return (R_Reconnect state)
+let reidentify state = Lwt.return (R_Reidentify state)
 
 let send_response send message =
   let content = Message.Send.to_yojson message |> Yojson.Safe.to_string in
