@@ -3,6 +3,16 @@ open! Core_kernel
 open Discord
 open Config
 
+type state = {
+  just_started: bool;
+  tracker: String.Set.t;
+}
+
+let initial_state  = {
+  just_started = true;
+  tracker = String.Set.empty;
+}
+
 type vc_change =
 (* Voice State Update *)
 | VSU of Objects.Channel.member option
@@ -27,7 +37,10 @@ let can_send ~notifies =
 
 let post_message ~token ~channel_id ~content ~notifies =
   if can_send ~notifies
-  then Rest.Channel.create_message ~token ~channel_id ~content Ignore
+  then begin
+    let%lwt () = Rest.Channel.create_message ~token ~channel_id ~content Ignore in
+    Lwt_io.printlf "✅ Posted to <%s>" channel_id
+  end
   else Lwt_io.printl "⏳ Waiting until we can send again"
 
 let pick_line { p_common; p_uncommon } lines =
@@ -38,7 +51,7 @@ let pick_line { p_common; p_uncommon } lines =
   end
   |> Array.random_element_exn
 
-let vc_member_change { token; text_channel = channel_id; line2; line4; thresholds; _ } ~before ~after change =
+let vc_member_change { token; text_channel = channel_id; line2; line4; thresholds; _ } ~just_started ~before ~after change =
   let nick_opt opt =
     Option.bind opt ~f:Objects.Channel.member_name
     |> Option.value ~default:"❓"
@@ -47,37 +60,37 @@ let vc_member_change { token; text_channel = channel_id; line2; line4; threshold
     Objects.Channel.member_name member
     |> Option.value ~default:"❓"
   in
-  let%lwt () = begin match change with
-  | VSU member when before < after -> Lwt_io.printlf "📈 %s" (nick_opt member)
-  | VSU member when before > after -> Lwt_io.printlf "📉 %s" (nick_opt member)
+  let buf = Buffer.create 64 in
+  begin match change with
+  | VSU member when before < after -> bprintf buf "📈 %s\n" (nick_opt member)
+  | VSU member when before > after -> bprintf buf "📉 %s\n" (nick_opt member)
   | VSU _
-  | GC [] -> Lwt.return_unit
+  | GC [] -> ()
   | GC ll ->
     List.map ll ~f:(fun m -> sprintf "⚡ %s" (nick m))
     |> String.concat ~sep:"\n"
-    |> Lwt_io.printl
-  end
-  in
+    |> bprintf buf "%s\n"
+  end;
+  if after <> before
+  then bprintf buf "Current count: %d\n" after;
   let%lwt () =
-    if after <> before
-    then Lwt_io.printlf "Current count: %d" after
+    if Buffer.length buf > 0
+    then Lwt_io.print (Buffer.contents buf)
     else Lwt.return_unit
   in
-  if after > before
+  if after > before && not just_started
   then begin match after with
   | 2 ->
     let content = pick_line thresholds line2 in
-    let%lwt () = post_message ~token ~channel_id ~content ~notifies:true in
-    Lwt_io.printlf "✅ Posted to <%s>" channel_id
+    post_message ~token ~channel_id ~content ~notifies:true
   | 4 ->
     let content = pick_line thresholds line4 in
-    let%lwt () = post_message ~token ~channel_id ~content ~notifies:false in
-    Lwt_io.printlf "✅ Posted to <%s>" channel_id
+    post_message ~token ~channel_id ~content ~notifies:false
   | _ -> Lwt.return_unit
   end
   else Lwt.return_unit
 
-let on_voice_state_update config tracker (vsu : Events.Voice_state_update.t) =
+let on_voice_state_update config { tracker; just_started } (vsu : Events.Voice_state_update.t) =
   let before = String.Set.length tracker in
   let tracker, member = begin match vsu with
   (* Target channel, not a bot *)
@@ -89,10 +102,10 @@ let on_voice_state_update config tracker (vsu : Events.Voice_state_update.t) =
   end
   in
   let after = String.Set.length tracker in
-  let%lwt () = vc_member_change config ~before ~after (VSU member) in
+  let%lwt () = vc_member_change config ~just_started ~before ~after (VSU member) in
   Lwt.return tracker
 
-let on_guild_create config tracker (gc : Events.Guild_create.t) =
+let on_guild_create config { tracker; just_started } (gc : Events.Guild_create.t) =
   let before = String.Set.length tracker in
   let users_in_target_channel = begin match gc with
   | { voice_states = None; _ } -> String.Set.empty
@@ -117,5 +130,5 @@ let on_guild_create config tracker (gc : Events.Guild_create.t) =
   end
   in
   let after = String.Set.length tracker in
-  let%lwt () = vc_member_change config ~before ~after (GC members) in
+  let%lwt () = vc_member_change config ~just_started ~before ~after (GC members) in
   Lwt.return tracker

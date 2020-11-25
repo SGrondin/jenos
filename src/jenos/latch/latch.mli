@@ -15,4 +15,4 @@ val check: ?now:Int64.t -> t -> bool
 
 val trigger: ?now:Int64.t -> t -> unit
 
-val wait_and_trigger: ?now:Int64.t -> t -> unit Lwt.t
+val wait_and_trigger: ?now:Int64.t -> ?custom_cooldown:Int64.t -> t -> unit Lwt.t

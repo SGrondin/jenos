@@ -30,7 +30,7 @@ module type S = sig
 
   val create : unit -> t
   val on_exn : exn -> unit Lwt.t
-  val on_connection_closed : close -> unit Lwt.t
+  val on_closing_connection : close -> unit Lwt.t
   val on_event : t -> event -> t Lwt.t
 end
 
@@ -60,7 +60,7 @@ end = struct
 
   let close_connection { ic; oc; send; cancel = _ } close =
     let code = code_of_close close in
-    let%lwt () = Bot.on_connection_closed close in
+    let%lwt () = Bot.on_closing_connection close in
     let%lwt () =
       if Lwt_io.is_closed oc
       then Lwt.return_unit

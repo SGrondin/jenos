@@ -1,6 +1,5 @@
 open! Core_kernel
 
-open Discord
 open Config
 
 let parser =
@@ -61,16 +60,16 @@ let%expect_test "Parser" =
   test "Poll 1/2/3/4";
   [%expect {| () |}]
 
-let on_message_create config ~on_exn = function
+let on_message_create config = function
 | Objects.Message.{ id = _; type_ = DEFAULT; channel_id; content; author; _ } when String.(=) author.id config.poll_user_id ->
-  parse content |> Option.iter ~f:(fun (text, letters) ->
-    Bot.in_background ~on_exn (fun () ->
-      let%lwt posted = Rest.Channel.create_message ~token:config.token ~channel_id ~content:text (Parse Objects.Message.of_yojson_exn) in
-      Lwt_list.iter_s (fun letter ->
-        let%lwt () = Lwt_unix.sleep 2.0 in
-        let emoji = emoji_of_letter letter in
-        Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id:posted.id ~emoji Ignore
-      ) letters
-    )
-  )
-| _ -> ()
+  begin match parse content with
+  | Some (text, letters) ->
+    let%lwt posted = Rest.Channel.create_message ~token:config.token ~channel_id ~content:text (Parse Objects.Message.of_yojson_exn) in
+    Lwt_list.iter_s (fun letter ->
+      let%lwt () = Latch.wait_and_trigger ~custom_cooldown:Int64.(2L * Latch.Time.sec) Rest.Call.latch in
+      let emoji = emoji_of_letter letter in
+      Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id:posted.id ~emoji Ignore
+    ) letters
+  | None -> Lwt.return_unit
+  end
+| _ -> Lwt.return_unit

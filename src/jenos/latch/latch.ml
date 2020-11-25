@@ -25,8 +25,9 @@ let check ?(now = Time.get ()) latch = now > (latch.previous + latch.cooldown)
 
 let trigger ?(now = Time.get ()) latch = latch.previous <- now
 
-let wait_and_trigger ?(now = Time.get ()) latch =
-  let next = latch.previous + latch.cooldown in
+let wait_and_trigger ?(now = Time.get ()) ?custom_cooldown latch =
+  let cooldown = Option.value custom_cooldown ~default:latch.cooldown in
+  let next = latch.previous + cooldown in
   if now > next
   then begin
     latch.previous <- now;
