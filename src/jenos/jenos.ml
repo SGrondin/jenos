@@ -75,7 +75,7 @@ let create_bot config =
           in_background ~on_exn (fun () ->
             Lwt.join [
               Make_poll.on_message_create config message;
-              Make_dnd_poll.on_message_create config message;
+              Make_meeting_poll.on_message_create config message;
               Add_reactions.on_message_create config message;
             ]
           );
