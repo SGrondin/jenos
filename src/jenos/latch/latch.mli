@@ -6,9 +6,9 @@ val create: cooldown:Int64.t -> t
 
 module Time : sig
   val get: unit -> Int64.t
-  val min: Int64.t
-  val sec: Int64.t
-  val ms: Int64.t
+  val min: Int64.t -> Int64.t
+  val sec: Int64.t -> Int64.t
+  val ms: Int64.t -> Int64.t
 end
 
 val check: ?now:Int64.t -> t -> bool

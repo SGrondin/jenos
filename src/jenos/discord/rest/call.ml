@@ -4,7 +4,7 @@ open! Cohttp_lwt_unix
 module Body = Cohttp_lwt.Body
 open Lwt.Infix
 
-let name = "Camlbot v0.9"
+let name = "Camlbot"
 
 let headers ~token = Header.of_list [
     "Authorization", sprintf "Bot %s" token;
@@ -31,7 +31,7 @@ let make_uri ?(uri = base_uri) ll =
   |> String.concat ~sep:"/"
   |> Uri.with_path uri
 
-let latch = Latch.(create ~cooldown:Int64.(400L * Time.ms))
+let latch = Latch.(create ~cooldown:(Time.ms 400L))
 
 type _ handler =
 | JSON : Yojson.Safe.t handler

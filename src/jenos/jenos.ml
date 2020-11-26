@@ -39,7 +39,8 @@ let create_bot config =
       | Before_action msg -> begin match msg with
         (* READY *)
         | { op = Dispatch; t = Some "READY"; s = _; d } ->
-          Lwt_io.printlf "✅ READY! %s" (Yojson.Safe.to_string d) >>> { vc_state = { vc_state with just_started = false }}
+          Lwt_io.printlf "✅ READY! %s" (Yojson.Safe.to_string d)
+          >>> { vc_state = { vc_state with just_started = false }}
 
         (* RECONNECT *)
         | { op = Reconnect; _ } ->

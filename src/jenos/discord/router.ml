@@ -23,7 +23,7 @@ let send_response send message =
   Websocket.Frame.create ~opcode:Text ~content ()
   |> send
 
-let identify ({ token; activity; status; afk; intents } : Login.t) send =
+let identify Login.{ token; activity; status; afk; intents } send =
   {
     token;
     properties = {
@@ -44,7 +44,7 @@ let identify ({ token; activity; status; afk; intents } : Login.t) send =
   |> Commands.Identify.to_message
   |> send_response send
 
-let resume ({ token; _ } : Login.t) send internal_state session_id =
+let resume Login.{ token; _ } send internal_state session_id =
   {
     token;
     session_id;
@@ -53,7 +53,7 @@ let resume ({ token; _ } : Login.t) send internal_state session_id =
   |> Commands.Resume.to_message
   |> send_response send
 
-let handle_message (login : Login.t) ~send ~cancel ({ internal_state; user_state } as state) = function
+let handle_message login ~send ~cancel ({ internal_state; user_state } as state) = function
 | Message.Recv.{ op = Hello; d; _ } ->
   let hello = Events.Hello.of_yojson_exn d in
   let%lwt () = begin match Internal_state.session_id internal_state with

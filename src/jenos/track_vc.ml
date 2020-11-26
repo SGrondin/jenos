@@ -19,8 +19,8 @@ type vc_change =
 (* Guild Create *)
 | GC of Objects.Channel.member list
 
-let latch_all = Latch.(create ~cooldown:Int64.(20L * Time.min))
-let latch_notif = Latch.(create ~cooldown:Int64.(40L * Time.min))
+let latch_all = Latch.(create ~cooldown:(Time.min 20L))
+let latch_notif = Latch.(create ~cooldown:(Time.min 40L))
 
 let can_send ~notifies =
   let now = Latch.Time.get () in

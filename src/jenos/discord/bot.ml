@@ -132,12 +132,13 @@ let rec event_loop ~trigger_event login connection recv ({ internal_state; user_
   | x -> Lwt.return x
   end
 
-let connect ~trigger_event login state uri =
+let connect ~trigger_event (Login.{ token; _ } as login) state =
+  let%lwt res = Rest.Gateway.get ~token in
   let uri =
-    begin match Uri.scheme uri with
+    begin match Uri.scheme res.url with
     | None
-    | Some "wss" -> Uri.with_scheme uri (Some "https")
-    | Some "ws" -> Uri.with_scheme uri (Some "http")
+    | Some "wss" -> Uri.with_scheme res.url (Some "https")
+    | Some "ws" -> Uri.with_scheme res.url (Some "http")
     | Some x -> failwithf "Invalid scheme in WS connect: %s" x ()
     end
     |> Fn.flip Uri.add_query_params ["v", ["8"]; "encoding", ["json"]]
@@ -160,10 +161,10 @@ let connect ~trigger_event login state uri =
   let%lwt action = event_loop ~trigger_event login connection cancelable_recv state in
   Lwt.return (action, connection)
 
-let rec connection_loop ~trigger_event ~on_exn ~close_connection (login : Login.t) blank_state previous_state =
-  let%lwt res = Rest.Gateway.get ~token:login.token in
+let rec connection_loop ~trigger_event ~on_exn ~close_connection login blank_state previous_state =
   let%lwt state =
-    begin match%lwt connect ~trigger_event login (Option.value previous_state ~default:(blank_state ())) res.url with
+    let state = Option.value previous_state ~default:(blank_state ()) in
+    begin match%lwt connect ~trigger_event login state with
     | Forward state, _ -> Lwt.return_some state
 
     | Reconnect state, connection ->
@@ -185,6 +186,7 @@ let rec connection_loop ~trigger_event ~on_exn ~close_connection (login : Login.
       let%lwt () = close_connection connection (Exception exn) in
       let%lwt () = on_exn exn in
       let%lwt () = Lwt_unix.sleep 5.0 in
+      (* Reset the user state to avoid an infinite crash loop *)
       Lwt.return_some (blank_state ())
     end
   in

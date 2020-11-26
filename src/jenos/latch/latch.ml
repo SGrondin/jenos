@@ -16,9 +16,9 @@ let create ~cooldown = {
 
 module Time = struct
   let get () = Time_now.nanoseconds_since_unix_epoch () |> Int63.to_int64
-  let min = 60L * 1_000_000_000L
-  let sec = 1_000_000_000L
-  let ms = 1_000_000L
+  let min x = x * 60L * 1_000_000_000L
+  let sec x = x * 1_000_000_000L
+  let ms x = x * 1_000_000L
 end
 
 let check ?(now = Time.get ()) latch = now > (latch.previous + latch.cooldown)
@@ -35,7 +35,7 @@ let wait_and_trigger ?(now = Time.get ()) ?custom_cooldown latch =
   end
   else begin
     Lwt_mutex.with_lock latch.mutex (fun () ->
-      let%lwt () = Lwt_unix.sleep ((next - now) // Time.sec) in
+      let%lwt () = Lwt_unix.sleep ((next - now) // 1_000_000_000L) in
       latch.previous <- now;
       Lwt.return_unit
     )

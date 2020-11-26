@@ -42,5 +42,5 @@ let create_reaction ~token ~channel_id ~message_id ~emoji handler =
       "@me"
     ]
   in
-  let%lwt () = Latch.wait_and_trigger ~custom_cooldown:Int64.(2L * Latch.Time.sec) Call.latch in
+  let%lwt () = Latch.wait_and_trigger ~custom_cooldown:(Latch.Time.ms 1500L) Call.latch in
   Call.run ~headers ~expect:204 `PUT uri handler
