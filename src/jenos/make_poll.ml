@@ -2,97 +2,123 @@ open! Core_kernel
 
 open Config
 
-let parser =
-  let open Angstrom in
-  let digits = take_while1 (function
-    | '0' .. '9' -> true
-    | _ -> false
-    ) >>| Int.of_string
-  in
-  let one =
-    let dot = option false (char '.' *> return true) in
-    let time = both digits dot >>| function
-      | x, dot when x > 12 -> sprintf "%d:%d0pm" (x - 12) (if dot then 3 else 0)
-      | x, dot -> sprintf "%d:%d0" x (if dot then 3 else 0)
-    in
-    (time >>| Option.return) <|> (char '-' *> return None)
-  in
-  let start_day = option None (digits <* char '/' >>| Option.return) in
-  lift2 Tuple2.create (string "Poll! " *> start_day) (sep_by1 (char ',') one)
-
-type letter = A | B | C | D [@@deriving sexp, enum, show { with_path = false }]
-let emoji_of_letter = function
-| A -> "🇦"
-| B -> "🇧"
-| C -> "🇨"
-| D -> "🇩"
-
-type day =
-| Monday
-| Tuesday
-| Wednesday
-| Thursday
-| Friday
-| Saturday
-| Sunday
-[@@deriving sexp, enum, show { with_path = false }]
-
-type parsed = {
+type choice = {
+  opt: char;
   text: string;
-  letters: letter list;
 } [@@deriving sexp]
 
+type poll = {
+  question: string;
+  options: choice list;
+} [@@deriving sexp]
+
+let emoji_of_opt = function
+| 'A' -> "🇦"
+| 'B' -> "🇧"
+| 'C' -> "🇨"
+| 'D' -> "🇩"
+| 'E' -> "🇪"
+| 'F' -> "🇫"
+| 'G' -> "🇬"
+| 'H' -> "🇭"
+| 'I' -> "🇮"
+| 'J' -> "🇯"
+| 'K' -> "🇰"
+| 'L' -> "🇱"
+| 'M' -> "🇲"
+| 'N' -> "🇳"
+| 'O' -> "🇴"
+| 'P' -> "🇵"
+| 'Q' -> "🇶"
+| 'R' -> "🇷"
+| 'S' -> "🇸"
+| 'T' -> "🇹"
+| 'U' -> "🇺"
+| 'V' -> "🇻"
+| 'W' -> "🇼"
+| 'X' -> "🇽"
+| 'Y' -> "🇾"
+| 'Z' -> "🇿"
+| c -> failwithf "Invalid option '%c'" c ()
+
+let parser =
+  let open Angstrom in
+  let opt = satisfy (function
+    | 'A' .. 'Z' | 'a' .. 'z' -> true
+    | _ -> false
+    ) >>| Char.uppercase
+  in
+  let ws = skip_while (Char.(=) ' ') in
+  let rest = take_till (Char.(=) '\n') >>| String.strip in
+  let line = lift2 (fun opt text -> { opt; text })
+      (ws *> char '-' *> ws *> opt <* ws <* char ':')
+      rest
+  in
+  lift2 (fun question options -> { question; options })
+    (ws *> string_ci "Poll!" *> rest <* char '\n' <* skip_while (Char.(<>) '-'))
+    (sep_by1 end_of_line line)
+
 let parse raw =
-  Angstrom.parse_string parser ~consume:All raw
+  Angstrom.parse_string parser ~consume:Prefix raw
   |> Result.ok
-  |> Option.map ~f:(fun (start_day, times) ->
-    let start_day = Option.value_map start_day ~default:(day_to_enum Saturday) ~f:pred in
-    let text, letters =
-      List.foldi times ~init:([], 0) ~f:(fun i ((ll, n) as acc) -> function
-      | None -> acc
-      | Some x ->
-        let letter = letter_of_enum n |> Option.value_exn ~here:[% here] in
-        let s =
-          sprintf "%s: %s %s"
-            (show_letter letter)
-            ((start_day + (i / 2)) % 7 |> day_of_enum |> Option.value_exn ~here:[% here] |> show_day)
-            x
-        in
-        (s, letter) :: ll, n + 1
+  |> Option.map ~f:(fun poll ->
+    List.fold_until poll.options ~init:Char.Set.empty ~f:(fun acc { opt; _ } ->
+      if Char.Set.mem acc opt
+      then Stop (Error (sprintf "Duplicate option '%c'" opt))
+      else Continue (Char.Set.add acc opt)
+    )
+      ~finish:(fun set ->
+        if Char.Set.length set < 2
+        then Error "There should be at least 2 choices"
+        else Ok poll
       )
-      |> fst
-      |> List.rev
-      |> List.unzip
-      |> Tuple2.map_fst ~f:(String.concat ~sep:"\n")
-    in
-    { text; letters }
   )
 
-let%expect_test "Parser" =
-  let test s = parse s |> [%sexp_of: parsed option] |> Sexp.to_string |> print_endline in
-  test "Poll! 12,19,-,10";
-  [%expect {| (((text"A: Saturday 12:00\nB: Saturday 7:00pm\nC: Sunday 10:00")(letters(A B C)))) |}];
-  test "Poll! 7,19.,-,-";
-  [%expect {| (((text"A: Saturday 7:00\nB: Saturday 7:30pm")(letters(A B)))) |}];
-  test "Poll! 6/-,19,10.";
-  [%expect {| (((text"A: Saturday 7:00pm\nB: Sunday 10:30")(letters(A B)))) |}];
-  test "Poll! 7/-,19,10.";
-  [%expect {| (((text"A: Sunday 7:00pm\nB: Monday 10:30")(letters(A B)))) |}];
-  test "Poll 1/2/3/4";
+let%expect_test "Poll Parser" =
+  let test s = parse s |> [%sexp_of: (poll, string) Result.t option] |> Sexp.to_string |> print_endline in
+  test {|Poll! - A: blah|};
   [%expect {| () |}];
-  test "Poll! 4/10.,19.";
-  [%expect {| (((text"A: Thursday 10:30\nB: Thursday 7:30pm")(letters(A B)))) |}]
+  test {|Poll!
+  - A: blah|};
+  [%expect {| ((Error"There should be at least 2 choices")) |}];
+  test {|Poll!
+  - A: blah
+  - A: bleh
+  |};
+  [%expect {| ((Error"Duplicate option 'A'")) |}];
+  test {|Poll! super duper poll!
+  - A: blah
+  - B: bleh
+  -C:ok!
+  |};
+  [%expect {| ((Ok((question"super duper poll!")(options(((opt A)(text blah))((opt B)(text bleh))((opt C)(text ok!))))))) |}];
+  test {|Poll! This is a question
 
-let on_message_create config = function
-| Objects.Message.{ id = _; type_ = DEFAULT; channel_id; content; author; _ } when String.(=) author.id config.poll_user_id ->
+-A: blah
+- B: bleh
+  |};
+  [%expect {| ((Ok((question"This is a question")(options(((opt A)(text blah))((opt B)(text bleh))))))) |}];
+  ()
+
+let on_message_create { token; _ } = function
+| Objects.Message.{ id = message_id; type_ = DEFAULT; channel_id; content; _ } ->
   begin match parse content with
-  | Some { text; letters } ->
-    let%lwt posted = Rest.Channel.create_message ~token:config.token ~channel_id ~content:text (Parse Objects.Message.of_yojson_exn) in
-    Lwt_list.iter_s (fun letter ->
-      let%lwt () = Latch.wait_and_trigger ~custom_cooldown:Int64.(2L * Latch.Time.sec) Rest.Call.latch in
-      let emoji = emoji_of_letter letter in
-      Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id:posted.id ~emoji Ignore
-    ) letters
+  | Some (Error msg) ->
+    Rest.Channel.create_message ~token ~channel_id ~content:(sprintf ":x: %s" msg) Ignore
+
+  | Some (Ok poll) ->
+    let%lwt () = Rest.Channel.delete_message ~token ~channel_id ~message_id in
+    let buf = Buffer.create 64 in
+    Buffer.add_string buf poll.question;
+    List.iter poll.options ~f:(fun { opt; text } ->
+      bprintf buf "\n%s %s" (emoji_of_opt opt) text
+    );
+    let content = Buffer.contents buf in
+    let%lwt post = Rest.Channel.create_message ~token ~channel_id ~content (Parse Objects.Message.of_yojson_exn) in
+    Lwt_list.iter_s (fun { opt; _ } ->
+      Rest.Channel.create_reaction ~token ~channel_id ~message_id:post.id ~emoji:(emoji_of_opt opt) Ignore
+    ) poll.options
+
   | None -> Lwt.return_unit
   end
 | _ -> Lwt.return_unit

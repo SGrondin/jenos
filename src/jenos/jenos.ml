@@ -73,8 +73,11 @@ let create_bot config =
         | { op = Dispatch; t = Some "MESSAGE_CREATE"; s = _; d } ->
           let message = Objects.Message.of_yojson_exn d in
           in_background ~on_exn (fun () ->
-            let%lwt () = Make_poll.on_message_create config message in
-            Add_reactions.on_message_create config message
+            Lwt.join [
+              Make_poll.on_message_create config message;
+              Make_dnd_poll.on_message_create config message;
+              Add_reactions.on_message_create config message;
+            ]
           );
           Lwt.return state
 

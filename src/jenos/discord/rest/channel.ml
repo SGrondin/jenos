@@ -28,6 +28,11 @@ let create_message ~token ~channel_id ~content handler =
   let uri = Call.make_uri ["channels"; channel_id; "messages"] in
   Call.run ~headers ~body `POST uri handler
 
+let delete_message ~token ~channel_id ~message_id =
+  let headers = Call.headers ~token in
+  let uri = Call.make_uri ["channels"; channel_id; "messages"; message_id] in
+  Call.run ~headers ~expect:204 `DELETE uri Ignore
+
 let create_reaction ~token ~channel_id ~message_id ~emoji handler =
   let headers = Call.headers ~token in
   let uri = Call.make_uri [
@@ -37,4 +42,5 @@ let create_reaction ~token ~channel_id ~message_id ~emoji handler =
       "@me"
     ]
   in
+  let%lwt () = Latch.wait_and_trigger ~custom_cooldown:Int64.(2L * Latch.Time.sec) Call.latch in
   Call.run ~headers ~expect:204 `PUT uri handler
