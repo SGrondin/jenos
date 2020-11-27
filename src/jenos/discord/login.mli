@@ -16,7 +16,7 @@ type intent =
 | DIRECT_MESSAGES
 | DIRECT_MESSAGE_REACTIONS
 | DIRECT_MESSAGE_TYPING
-[@@deriving sexp, enum, compare]
+[@@deriving sexp, enum]
 
 
 type t = {
@@ -27,19 +27,11 @@ type t = {
   afk: bool;
 } [@@deriving sexp]
 
-let create
-    ~token
-    ~intents
-    ?(activity = Commands.Identify.Game "Bot things")
-    ?(status = Commands.Identify.Online)
-    ?(afk = false)
-    () = {
-  token;
-  intents =
-    List.dedup_and_sort ~compare:compare_intent intents
-    |> List.fold ~init:0 ~f:(fun acc x ->
-      acc + (1 lsl (intent_to_enum x)));
-  activity;
-  status;
-  afk;
-}
+val create :
+  token:string ->
+  intents:intent list ->
+  ?activity:Commands.Identify.activity ->
+  ?status:Commands.Identify.status ->
+  ?afk:bool ->
+  unit ->
+  t

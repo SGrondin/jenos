@@ -17,7 +17,7 @@ type parsed =
 type t = {
   raw: Protocol.Recv.t;
   parsed: parsed;
-}
+} [@@deriving sexp_of]
 
 let of_recv = function
 | { op = Hello; d; _ } -> Hello (Events.Hello.of_yojson_exn d)

@@ -18,6 +18,8 @@ let forward state = Lwt.return (R_Forward state)
 let reconnect state = Lwt.return (R_Reconnect state)
 let reidentify state = Lwt.return (R_Reidentify state)
 
+type send = (Websocket.Frame.t -> unit Lwt.t)
+
 let send_response send message =
   let content = Protocol.Send.to_yojson message |> Yojson.Safe.to_string in
   Websocket.Frame.create ~opcode:Text ~content ()

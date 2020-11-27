@@ -198,12 +198,12 @@ let rec connection_loop ~trigger_event ~on_exn ~close_connection login blank_sta
   end
 
 module type S = sig
-  type t
+  type state
 
-  val create : unit -> t
+  val create : unit -> state
   val on_exn : exn -> unit Lwt.t
   val on_closing_connection : close -> unit Lwt.t
-  val on_event : t -> event -> t Lwt.t
+  val on_event : state -> event -> state Lwt.t
 end
 
 module Make (Bot : S) : sig

@@ -6,7 +6,7 @@ let create_bot config =
   Random.set_state (Random.State.make_self_init ());
   let module Bot = Bot.Make (struct
       open Bot
-      type t = {
+      type state = {
         vc_state: Track_vc.state;
       }
 
@@ -36,52 +36,48 @@ let create_bot config =
         >>> state
       | Before_reidentifying -> Lwt_io.printl "⏯️ Resuming..." >>> state
       | Before_reconnecting -> Lwt_io.printl "🌐 Reconnecting..." >>> state
-      | Before_action msg -> begin match msg with
-        (* READY *)
-        | { parsed = Ready _; raw = { d; _ } } ->
-          Lwt_io.printlf "✅ READY! %s" (Yojson.Safe.to_string d)
-          >>> { vc_state = { vc_state with just_started = false }}
 
-        (* RECONNECT *)
-        | { parsed = Reconnect; _ } ->
-          Lwt_io.printl "⚠️ Received a Reconnect request." >>> state
+      (* READY *)
+      | Before_action { parsed = Ready _; raw = { d; _ } } ->
+        Lwt_io.printlf "✅ READY! %s" (Yojson.Safe.to_string d)
+        >>> { vc_state = { vc_state with just_started = false }}
 
-        (* RESUMED *)
-        | { parsed = Resumed; _ } ->
-          Lwt_io.printl "▶️ Resumed" >>> state
+      (* RECONNECT *)
+      | Before_action { parsed = Reconnect; _ } ->
+        Lwt_io.printl "⚠️ Received a Reconnect request." >>> state
 
-        (* INVALID_SESSION *)
-        | { parsed = Invalid_session _; _ } ->
-          Lwt_io.printl "⚠️ Session rejected, starting a new session..." >>> state
+      (* RESUMED *)
+      | Before_action { parsed = Resumed; _ } ->
+        Lwt_io.printl "▶️ Resumed" >>> state
 
-        | _ -> Lwt.return state
-        end
+      (* INVALID_SESSION *)
+      | Before_action { parsed = Invalid_session _; _ } ->
+        Lwt_io.printl "⚠️ Session rejected, starting a new session..." >>> state
 
-      | After_action msg -> begin match msg with
-        (* VOICE_STATE_UPDATE *)
-        | { parsed = Voice_state_update vsu; _ } ->
-          let%lwt tracker = Track_vc.on_voice_state_update config vc_state vsu in
-          Lwt.return { vc_state = { vc_state with tracker } }
 
-        (* GUILD_CREATE *)
-        | { parsed = Guild_create gc; _ } ->
-          let%lwt tracker = Track_vc.on_guild_create config vc_state gc in
-          Lwt.return { vc_state = { vc_state with tracker } }
+      (* VOICE_STATE_UPDATE *)
+      | After_action { parsed = Voice_state_update vsu; _ } ->
+        let%lwt tracker = Track_vc.on_voice_state_update config vc_state vsu in
+        Lwt.return { vc_state = { vc_state with tracker } }
 
-        (* MESSAGE_CREATE *)
-        | { parsed = Message_create message; _ } ->
-          in_background ~on_exn (fun () ->
-            Lwt.join [
-              Make_poll.on_message_create config message;
-              Make_meeting_poll.on_message_create config message;
-              Add_reactions.on_message_create config message;
-            ]
-          );
-          Lwt.return state
+      (* GUILD_CREATE *)
+      | After_action { parsed = Guild_create gc; _ } ->
+        let%lwt tracker = Track_vc.on_guild_create config vc_state gc in
+        Lwt.return { vc_state = { vc_state with tracker } }
 
-        (* Other events *)
-        | _ -> Lwt.return state
-        end
+      (* MESSAGE_CREATE *)
+      | After_action { parsed = Message_create message; _ } ->
+        in_background ~on_exn (fun () ->
+          Lwt.join [
+            Make_poll.on_message_create config message;
+            Make_meeting_poll.on_message_create config message;
+            Add_reactions.on_message_create config message;
+          ]
+        );
+        Lwt.return state
+
+      (* Other events *)
+      | _ -> Lwt.return state
     end)
   in
   Bot.start

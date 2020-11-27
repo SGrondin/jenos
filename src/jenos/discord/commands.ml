@@ -6,7 +6,7 @@ module Identify = struct
     browser: string [@key "$browser"];
     device: string [@key "$device"];
   }
-  [@@deriving sexp, fields, to_yojson]
+  [@@deriving sexp, fields, yojson]
 
   type activity =
   | Game of string
@@ -31,7 +31,7 @@ module Identify = struct
   | `Assoc ["streaming", `String s] -> Ok (Streaming s)
   | `Assoc ["listening", `String s] -> Ok (Listening s)
   | `Assoc ["competing", `String s] -> Ok (Competing s)
-  | json -> Error (sprintf "Invalid bot status: %s" (Yojson.Safe.to_string json))
+  | json -> Error (sprintf "Invalid activity: %s" (Yojson.Safe.to_string json))
 
   type status =
   | Online
@@ -47,13 +47,21 @@ module Identify = struct
   | Invisible -> `String "invisible"
   | Offline -> `String "offline"
 
+  let status_of_yojson = function
+  | `String "online" -> Ok Online
+  | `String "dnd" -> Ok DND
+  | `String "idle" -> Ok Idle
+  | `String "invisible" -> Ok Invisible
+  | `String "offline" -> Ok Offline
+  | json -> Error (sprintf "Invalid status: %s" (Yojson.Safe.to_string json))
+
   type presence = {
     since: Int64.t option;
     activities: activity list option;
     status: status;
     afk: bool;
   }
-  [@@deriving sexp, fields, to_yojson]
+  [@@deriving sexp, fields, yojson]
   type t = {
     token: string;
     properties: connection;
@@ -62,7 +70,7 @@ module Identify = struct
     guild_subscriptions: bool;
     intents: int;
   }
-  [@@deriving sexp, fields, to_yojson]
+  [@@deriving sexp, fields, yojson]
   let to_message x : Protocol.Send.t = {
     op = Protocol.Opcode.Identify;
     t = None;
@@ -72,7 +80,7 @@ module Identify = struct
 end
 
 module Heartbeat = struct
-  type t = int option
+  type t = int option [@@deriving sexp, yojson]
   let to_message x : Protocol.Send.t = {
     op = Protocol.Opcode.Heartbeat;
     t = None;
@@ -96,7 +104,7 @@ module Resume = struct
     session_id: string;
     seq: int option;
   }
-  [@@deriving sexp, fields, to_yojson]
+  [@@deriving sexp, fields, yojson]
   let to_message x : Protocol.Send.t = {
     op = Protocol.Opcode.Resume;
     t = None;

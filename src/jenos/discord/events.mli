@@ -1,24 +1,20 @@
 open! Core_kernel
 
-module Hello = struct
+module Hello : sig
   type t = {
     heartbeat_interval: int;
   }
   [@@deriving sexp, fields, of_yojson { exn = true; strict = false }] [@@unboxed]
 end
 
-module Invalid_session = struct
+module Invalid_session : sig
   type t = {
     must_reconnect: bool;
   }
-  [@@deriving sexp, fields] [@@unboxed]
-  let of_yojson x =
-    [%of_yojson: bool] x
-    |> Result.map ~f:(fun must_reconnect -> { must_reconnect })
-  let of_yojson_exn x = of_yojson x |> Result.ok_or_failwith
+  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }] [@@unboxed]
 end
 
-module Ready = struct
+module Ready : sig
   type t = {
     v: int;
     user: Objects.User.t;
@@ -29,7 +25,7 @@ module Ready = struct
   [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
 end
 
-module Voice_state_update = struct
+module Voice_state_update : sig
   type t = {
     guild_id: string option [@default None];
     channel_id: string option;
@@ -40,7 +36,7 @@ module Voice_state_update = struct
   [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
 end
 
-module Guild_create = struct
+module Guild_create : sig
   type voice_state = {
     user_id: string;
     session_id: string;
