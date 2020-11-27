@@ -19,7 +19,7 @@ let reconnect state = Lwt.return (R_Reconnect state)
 let reidentify state = Lwt.return (R_Reidentify state)
 
 let send_response send message =
-  let content = Message.Send.to_yojson message |> Yojson.Safe.to_string in
+  let content = Protocol.Send.to_yojson message |> Yojson.Safe.to_string in
   Websocket.Frame.create ~opcode:Text ~content ()
   |> send
 
@@ -54,8 +54,7 @@ let resume Login.{ token; _ } send internal_state session_id =
   |> send_response send
 
 let handle_message login ~send ~cancel ({ internal_state; user_state } as state) = function
-| Message.Recv.{ op = Hello; d; _ } ->
-  let hello = Events.Hello.of_yojson_exn d in
+| Message.{ parsed = Hello hello; _ } ->
   let%lwt () = begin match Internal_state.session_id internal_state with
   | Some id -> resume login send internal_state id
   | None -> identify login send
@@ -70,33 +69,31 @@ let handle_message login ~send ~cancel ({ internal_state; user_state } as state)
   let internal_state = Internal_state.received_hello heartbeat_loop internal_state in
   forward { internal_state; user_state }
 
-| { op = Heartbeat; _ } ->
+| { raw = { op = Heartbeat; _ }; _ } ->
   let%lwt () = Commands.Heartbeat_ACK.to_message |> send_response send in
   forward state
 
-| { op = Heartbeat_ACK; _ } ->
+| { raw = { op = Heartbeat_ACK; _ }; _ } ->
   Internal_state.received_ack internal_state;
   forward state
 
-| { op = Invalid_session; d; _ } ->
-  if Events.Invalid_session.of_yojson_exn d
+| { parsed = Invalid_session { must_reconnect }; _ } ->
+  if must_reconnect
   then reidentify state
   else reconnect state
 
-| { op = Dispatch; t = Some "READY"; s = _; d } ->
-  let Events.Ready.{ session_id; _ } = Events.Ready.of_yojson_exn d in
+| { parsed = Ready { session_id; _ }; _ } ->
   let internal_state = Internal_state.received_ready ~session_id internal_state in
   forward { internal_state; user_state }
 
-| { op = Dispatch; _ } ->
-  forward state
-
-| { op = Reconnect; _ } ->
+| { parsed = Reconnect; _ } ->
   reconnect state
 
-| ({ op = Identify; _ } as x)
-| ({ op = Presence_update; _ } as x)
-| ({ op = Voice_state_update; _ } as x)
-| ({ op = Resume; _ } as x)
-| ({ op = Request_guild_members; _ } as x) ->
-  failwithf "Unexpected opcode: %s. Please report this bug." ([%sexp_of: Message.Recv.t] x |> Sexp.to_string) ()
+| { raw = ({ op = Identify; _ } as x); _ }
+| { raw = ({ op = Presence_update; _ } as x); _ }
+| { raw = ({ op = Voice_state_update; _ } as x); _ }
+| { raw = ({ op = Resume; _ } as x); _ }
+| { raw = ({ op = Request_guild_members; _ } as x); _ } ->
+  failwithf "Unexpected opcode: %s. Please report this bug." ([%sexp_of: Protocol.Recv.t] x |> Sexp.to_string) ()
+
+| _ -> forward state

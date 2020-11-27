@@ -8,8 +8,14 @@ module Hello = struct
 end
 
 module Invalid_session = struct
-  type t = bool
-  [@@deriving sexp, of_yojson { exn = true; strict = false }]
+  type t = {
+    must_reconnect: bool;
+  } [@@unboxed]
+  [@@deriving sexp, fields]
+  let of_yojson x =
+    [%of_yojson: bool] x
+    |> Result.map ~f:(fun must_reconnect -> { must_reconnect })
+  let of_yojson_exn x = of_yojson x |> Result.ok_or_failwith
 end
 
 module Ready = struct

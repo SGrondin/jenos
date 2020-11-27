@@ -63,8 +63,8 @@ module Identify = struct
     intents: int;
   }
   [@@deriving sexp, fields, to_yojson]
-  let to_message x : Message.Send.t = {
-    op = Message.Opcode.Identify;
+  let to_message x : Protocol.Send.t = {
+    op = Protocol.Opcode.Identify;
     t = None;
     s = None;
     d = to_yojson x;
@@ -73,8 +73,8 @@ end
 
 module Heartbeat = struct
   type t = int option
-  let to_message x : Message.Send.t = {
-    op = Message.Opcode.Heartbeat;
+  let to_message x : Protocol.Send.t = {
+    op = Protocol.Opcode.Heartbeat;
     t = None;
     s = None;
     d = Option.value_map x ~default:`Null ~f:(fun x -> `Int x);
@@ -82,8 +82,8 @@ module Heartbeat = struct
 end
 
 module Heartbeat_ACK = struct
-  let to_message : Message.Send.t = {
-    op = Message.Opcode.Heartbeat_ACK;
+  let to_message : Protocol.Send.t = {
+    op = Protocol.Opcode.Heartbeat_ACK;
     t = None;
     s = None;
     d = `Null;
@@ -97,8 +97,8 @@ module Resume = struct
     seq: int option;
   }
   [@@deriving sexp, fields, to_yojson]
-  let to_message x : Message.Send.t = {
-    op = Message.Opcode.Resume;
+  let to_message x : Protocol.Send.t = {
+    op = Protocol.Opcode.Resume;
     t = None;
     s = None;
     d = to_yojson x;

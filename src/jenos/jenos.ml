@@ -38,20 +38,20 @@ let create_bot config =
       | Before_reconnecting -> Lwt_io.printl "🌐 Reconnecting..." >>> state
       | Before_action msg -> begin match msg with
         (* READY *)
-        | { op = Dispatch; t = Some "READY"; s = _; d } ->
+        | { parsed = Ready _; raw = { d; _ } } ->
           Lwt_io.printlf "✅ READY! %s" (Yojson.Safe.to_string d)
           >>> { vc_state = { vc_state with just_started = false }}
 
         (* RECONNECT *)
-        | { op = Reconnect; _ } ->
+        | { parsed = Reconnect; _ } ->
           Lwt_io.printl "⚠️ Received a Reconnect request." >>> state
 
         (* RESUMED *)
-        | { op = Dispatch; t = Some "RESUMED"; s = _; d = _ } ->
+        | { parsed = Resumed; _ } ->
           Lwt_io.printl "▶️ Resumed" >>> state
 
         (* INVALID_SESSION *)
-        | { op = Invalid_session; _ } ->
+        | { parsed = Invalid_session _; _ } ->
           Lwt_io.printl "⚠️ Session rejected, starting a new session..." >>> state
 
         | _ -> Lwt.return state
@@ -59,20 +59,17 @@ let create_bot config =
 
       | After_action msg -> begin match msg with
         (* VOICE_STATE_UPDATE *)
-        | { op = Dispatch; t = Some "VOICE_STATE_UPDATE"; s = _; d } ->
-          let vsu = Events.Voice_state_update.of_yojson_exn d in
+        | { parsed = Voice_state_update vsu; _ } ->
           let%lwt tracker = Track_vc.on_voice_state_update config vc_state vsu in
           Lwt.return { vc_state = { vc_state with tracker } }
 
         (* GUILD_CREATE *)
-        | { op = Dispatch; t = Some "GUILD_CREATE"; s = _; d } ->
-          let gc = Events.Guild_create.of_yojson_exn d in
+        | { parsed = Guild_create gc; _ } ->
           let%lwt tracker = Track_vc.on_guild_create config vc_state gc in
           Lwt.return { vc_state = { vc_state with tracker } }
 
         (* MESSAGE_CREATE *)
-        | { op = Dispatch; t = Some "MESSAGE_CREATE"; s = _; d } ->
-          let message = Objects.Message.of_yojson_exn d in
+        | { parsed = Message_create message; _ } ->
           in_background ~on_exn (fun () ->
             Lwt.join [
               Make_poll.on_message_create config message;

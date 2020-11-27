@@ -13,8 +13,8 @@ let code_of_close = function
 | Exception _ -> 4001
 
 type event =
-| Before_action of Message.Recv.t
-| After_action of Message.Recv.t
+| Before_action of Message.t
+| After_action of Message.t
 | Before_reidentifying
 | Before_reconnecting
 | Error_connection_closed
@@ -71,9 +71,10 @@ let handle_frame ~trigger_event login cancel send ({ internal_state; user_state 
 
   | Frame.{ opcode = Text; content; _ }
   | Frame.{ opcode = Binary; content; _ } ->
-    let message = Yojson.Safe.from_string content |> Message.Recv.of_yojson_exn in
+    let raw = Yojson.Safe.from_string content |> Protocol.Recv.of_yojson_exn in
+    let message = Message.parse raw in
     let%lwt user_state = trigger_event user_state (Before_action message) in
-    Internal_state.received_seq message.s internal_state;
+    Internal_state.received_seq raw.s internal_state;
     begin match%lwt Router.handle_message login ~send ~cancel { internal_state; user_state } message with
     | R_Forward { internal_state; user_state } ->
       let%lwt user_state = trigger_event user_state (After_action message) in
@@ -133,7 +134,7 @@ let rec event_loop ~trigger_event login connection recv ({ internal_state; user_
   end
 
 let connect ~trigger_event (Login.{ token; _ } as login) state =
-  let%lwt res = Rest.Gateway.get ~token in
+  let%lwt res = Rest.Gateway.bot ~token in
   let uri =
     begin match Uri.scheme res.url with
     | None

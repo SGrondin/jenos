@@ -14,7 +14,7 @@ type heartbeat = {
 
 type heartbeat_loop = {
   interval: int;
-  respond: Message.Send.t -> unit Lwt.t;
+  respond: Protocol.Send.t -> unit Lwt.t;
   cancel: Websocket.Frame.t Lwt.u;
 }
 

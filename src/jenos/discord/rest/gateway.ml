@@ -18,6 +18,6 @@ type response = {
 }
 [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
 
-let get ~token =
+let bot ~token =
   let uri = Call.make_uri ["gateway"; "bot"] in
   Call.run ~headers:(Call.headers ~token) `GET uri (Parse response_of_yojson_exn)
