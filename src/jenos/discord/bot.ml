@@ -15,7 +15,6 @@ let code_of_close = function
 type event =
 | Before_action of Message.t
 | After_action of Message.t
-| Before_reidentifying
 | Before_reconnecting
 | Error_connection_closed
 | Error_connection_reset
@@ -32,11 +31,11 @@ type connection = {
 
 type 'a action =
 | Forward of 'a Router.Open.state
-| Reconnect of 'a Router.Open.state
+| Reconnect of (float option * 'a Router.Open.state)
 | Exn of Exn.t
 
 let forward state = Lwt.return (Forward state)
-let reconnect state = Lwt.return (Reconnect state)
+let reconnect ~wait state = Lwt.return (Reconnect (wait, state))
 let exn_ exn = Lwt.return (Exn exn)
 
 let in_background ~on_exn f = Lwt.async (fun () -> Lwt.catch f on_exn)
@@ -64,7 +63,7 @@ let handle_frame ~trigger_event login cancel send ({ internal_state; user_state 
 
   | Frame.{ opcode = Close; extension; final; content } ->
     let%lwt user_state = trigger_event user_state (Error_discord_server { extension; final; content }) in
-    Router.reconnect { internal_state; user_state }
+    Router.reconnect ~wait:None { internal_state; user_state }
 
   | Frame.{ opcode = Pong; _ } ->
     Router.forward state
@@ -79,7 +78,7 @@ let handle_frame ~trigger_event login cancel send ({ internal_state; user_state 
     | R_Forward { internal_state; user_state } ->
       let%lwt user_state = trigger_event user_state (After_action message) in
       Router.forward { internal_state; user_state }
-    | x -> Lwt.return x
+    | (R_Reconnect _ as x) -> Lwt.return x
     end
 
   | frame ->
@@ -92,16 +91,10 @@ let rec event_loop ~trigger_event login connection recv ({ internal_state; user_
       begin match%lwt handle_frame ~trigger_event login connection.cancel connection.send state frame with
       | R_Forward state -> forward state
 
-      | R_Reidentify { internal_state; user_state } ->
-        let%lwt user_state = trigger_event user_state Before_reidentifying in
-        let%lwt () = Lwt_unix.sleep (Random.float_range 1.0 5.0) in
-        let%lwt () = Router.identify login connection.send in
-        forward { internal_state; user_state }
-
-      | R_Reconnect { internal_state; user_state } ->
+      | R_Reconnect (wait, { internal_state; user_state }) ->
         Internal_state.terminate internal_state;
         let%lwt user_state = trigger_event user_state Before_reconnecting in
-        reconnect { internal_state; user_state }
+        reconnect ~wait { internal_state; user_state }
       end
     ) (fun exn ->
       Internal_state.terminate internal_state;
@@ -109,19 +102,19 @@ let rec event_loop ~trigger_event login connection recv ({ internal_state; user_
       begin match exn with
       | End_of_file ->
         let%lwt user_state = trigger_event user_state Error_connection_closed in
-        reconnect { internal_state; user_state }
+        reconnect ~wait:None { internal_state; user_state }
 
       | Unix.Unix_error (Unix.ECONNRESET, _c, _s) ->
         let%lwt user_state = trigger_event user_state Error_connection_reset in
-        reconnect { internal_state; user_state }
+        reconnect ~wait:None { internal_state; user_state }
 
       | Unix.Unix_error (Unix.ETIMEDOUT, _c, _s) ->
         let%lwt user_state = trigger_event user_state Error_connection_timed_out in
-        reconnect { internal_state; user_state }
+        reconnect ~wait:None { internal_state; user_state }
 
       | Internal_state.Discontinuity_error counter ->
         let%lwt user_state = trigger_event user_state (Error_discontinuity counter) in
-        reconnect { internal_state = Internal_state.create (); user_state }
+        reconnect ~wait:None { internal_state = Internal_state.create (); user_state }
 
       | exn -> exn_ exn
       end
@@ -168,8 +161,9 @@ let rec connection_loop ~trigger_event ~on_exn ~close_connection login blank_sta
     begin match%lwt connect ~trigger_event login state with
     | Forward state, _ -> Lwt.return_some state
 
-    | Reconnect state, connection ->
+    | Reconnect (wait, state), connection ->
       let%lwt () = close_connection connection Reconnecting in
+      let%lwt () = Option.value_map wait ~default:Lwt.return_unit ~f:Lwt_unix.sleep in
       Lwt.return_some state
 
     | Exn Exit, connection ->

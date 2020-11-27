@@ -8,15 +8,13 @@ module Open = struct
 
   type 'a router_action =
   | R_Forward of 'a state
-  | R_Reconnect of 'a state
-  | R_Reidentify of 'a state
+  | R_Reconnect of (float option * 'a state)
 end
 
 open Open
 
 let forward state = Lwt.return (R_Forward state)
-let reconnect state = Lwt.return (R_Reconnect state)
-let reidentify state = Lwt.return (R_Reidentify state)
+let reconnect ~wait state = Lwt.return (R_Reconnect (wait, state))
 
 type send = (Websocket.Frame.t -> unit Lwt.t)
 
@@ -25,7 +23,10 @@ let send_response send message =
   Websocket.Frame.create ~opcode:Text ~content ()
   |> send
 
+let latch_identify = Latch.(create ~cooldown:(Time.sec 5L))
+
 let identify Login.{ token; activity; status; afk; intents } send =
+  let%lwt () = Latch.wait_and_trigger latch_identify in
   {
     token;
     properties = {
@@ -79,17 +80,20 @@ let handle_message login ~send ~cancel ({ internal_state; user_state } as state)
   Internal_state.received_ack internal_state;
   forward state
 
-| { parsed = Invalid_session { must_reconnect }; _ } ->
-  if must_reconnect
-  then reidentify state
-  else reconnect state
+| { parsed = Invalid_session { resumable }; _ } ->
+  if resumable
+  then reconnect ~wait:None state
+  else begin
+    let wait = Some (Random.float_range 1.0 5.0) in
+    reconnect ~wait { state with internal_state = Internal_state.create () }
+  end
 
 | { parsed = Ready { session_id; _ }; _ } ->
   let internal_state = Internal_state.received_ready ~session_id internal_state in
   forward { internal_state; user_state }
 
 | { parsed = Reconnect; _ } ->
-  reconnect state
+  reconnect ~wait:None state
 
 | { raw = ({ op = Identify; _ } as x); _ }
 | { raw = ({ op = Presence_update; _ } as x); _ }

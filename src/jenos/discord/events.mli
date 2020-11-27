@@ -9,7 +9,7 @@ end
 
 module Invalid_session : sig
   type t = {
-    must_reconnect: bool;
+    resumable: bool;
   }
   [@@deriving sexp, fields, yojson] [@@unboxed]
 end

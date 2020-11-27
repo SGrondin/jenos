@@ -34,7 +34,6 @@ let create_bot config =
       | Error_discontinuity { count; ack } ->
         Lwt_io.printlf "❌ Discontinuity error: ACK = %d but COUNT = %d. Closing the connection" ack count
         >>> state
-      | Before_reidentifying -> Lwt_io.printl "⏯️ Resuming..." >>> state
       | Before_reconnecting -> Lwt_io.printl "🌐 Reconnecting..." >>> state
 
       (* READY *)
@@ -51,8 +50,8 @@ let create_bot config =
         Lwt_io.printl "▶️ Resumed" >>> state
 
       (* INVALID_SESSION *)
-      | Before_action { parsed = Invalid_session _; _ } ->
-        Lwt_io.printl "⚠️ Session rejected, starting a new session..." >>> state
+      | Before_action { parsed = Invalid_session { resumable }; _ } ->
+        Lwt_io.printlf "⚠️ Session rejected (resumable: %b), starting a new session..." resumable >>> state
 
 
       (* VOICE_STATE_UPDATE *)

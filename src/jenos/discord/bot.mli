@@ -8,7 +8,6 @@ type close =
 type event =
 | Before_action of Message.t
 | After_action of Message.t
-| Before_reidentifying
 | Before_reconnecting
 | Error_connection_closed
 | Error_connection_reset

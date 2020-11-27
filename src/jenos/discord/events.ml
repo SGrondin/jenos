@@ -9,14 +9,14 @@ end
 
 module Invalid_session = struct
   type t = {
-    must_reconnect: bool;
+    resumable: bool;
   }
   [@@deriving sexp, fields] [@@unboxed]
   let of_yojson x =
     [%of_yojson: bool] x
-    |> Result.map ~f:(fun must_reconnect -> { must_reconnect })
+    |> Result.map ~f:(fun resumable -> { resumable })
 
-  let to_yojson { must_reconnect } = `Bool must_reconnect
+  let to_yojson { resumable } = `Bool resumable
 end
 
 module Ready = struct
