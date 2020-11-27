@@ -4,14 +4,14 @@ module Hello : sig
   type t = {
     heartbeat_interval: int;
   }
-  [@@deriving sexp, fields, yojson { strict = false }] [@@unboxed]
+  [@@deriving sexp, fields, yojson] [@@unboxed]
 end
 
 module Invalid_session : sig
   type t = {
     must_reconnect: bool;
   }
-  [@@deriving sexp, fields, yojson { strict = false }] [@@unboxed]
+  [@@deriving sexp, fields, yojson] [@@unboxed]
 end
 
 module Ready : sig
@@ -20,20 +20,20 @@ module Ready : sig
     user: Objects.User.t;
     private_channels: unit list;
     session_id: string;
-    shard: int list option [@default None];
+    shard: int list option;
   }
-  [@@deriving sexp, fields, yojson { strict = false }]
+  [@@deriving sexp, fields, yojson]
 end
 
 module Voice_state_update : sig
   type t = {
-    guild_id: string option [@default None];
+    guild_id: string option;
     channel_id: string option;
     user_id: string;
-    member: Objects.Channel.member option [@default None];
+    member: Objects.Channel.member option;
     session_id: string;
   }
-  [@@deriving sexp, fields, yojson { strict = false }]
+  [@@deriving sexp, fields, yojson]
 end
 
 module Guild_create : sig
@@ -42,14 +42,14 @@ module Guild_create : sig
     session_id: string;
     channel_id: string option;
   }
-  [@@deriving sexp, fields, yojson { strict = false }]
+  [@@deriving sexp, fields, yojson]
 
   type t = {
     id: string;
     name: string;
-    member_count: int option [@default None];
-    members: Objects.Channel.member list option [@default None];
-    voice_states: voice_state list option [@default None];
+    member_count: int option;
+    members: Objects.Channel.member list option;
+    voice_states: voice_state list option;
   }
-  [@@deriving sexp, fields, yojson { strict = false }]
+  [@@deriving sexp, fields, yojson]
 end

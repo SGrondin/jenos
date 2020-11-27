@@ -31,8 +31,8 @@ end
 module Send : sig
   type t = {
     op: Opcode.t;
-    t: string option [@default None];
-    s: int option [@default None];
+    t: string option;
+    s: int option;
     d: Yojson.Safe.t;
   }
   [@@deriving sexp, fields, yojson]

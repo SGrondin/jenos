@@ -8,25 +8,25 @@ type type_ =
 | GUILD_CATEGORY
 | GUILD_NEWS
 | GUILD_STORE
-[@@deriving sexp, yojson { strict = false }]
+[@@deriving sexp, yojson]
 
 type t = {
   id: string;
-  type_: type_ [@key "type"];
-  position: int option [@default None];
-  nsfw: bool option [@default None];
-  name: string option [@default None];
-  user_limit: int option [@default None];
-  bitrate: int option [@default None];
+  type_: type_;
+  position: int option;
+  nsfw: bool option;
+  name: string option;
+  user_limit: int option;
+  bitrate: int option;
 }
-[@@deriving sexp, fields, yojson { strict = false }]
+[@@deriving sexp, fields, yojson]
 
 type member = {
-  user: User.t option [@default None];
-  nick: string option [@default None];
+  user: User.t option;
+  nick: string option;
   roles: string list;
 }
-[@@deriving sexp, fields, yojson { strict = false }]
+[@@deriving sexp, fields, yojson]
 
 val is_bot : member option -> bool
 

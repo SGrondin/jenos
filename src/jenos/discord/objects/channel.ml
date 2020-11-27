@@ -19,8 +19,6 @@ let type__of_yojson = function
 | `Int 6 -> Ok GUILD_STORE
 | json -> Error (sprintf "Impossible to parse JSON %s into a channel type" (Yojson.Safe.to_string json))
 
-let type__of_yojson_exn x = type__of_yojson x |> Result.ok_or_failwith
-
 let type__to_yojson = function
 | GUILD_TEXT -> `Int 0
 | DM -> `Int 1

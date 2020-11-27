@@ -2,18 +2,18 @@ open! Core_kernel
 
 module Identify : sig
   type connection = {
-    os: string [@key "$os"];
-    browser: string [@key "$browser"];
-    device: string [@key "$device"];
+    os: string;
+    browser: string;
+    device: string;
   }
-  [@@deriving sexp, fields, yojson { strict = false }]
+  [@@deriving sexp, fields, yojson]
 
   type activity =
   | Game of string
   | Streaming of string
   | Listening of string
   | Competing of string
-  [@@deriving sexp, yojson { strict = false }]
+  [@@deriving sexp, yojson]
 
   type status =
   | Online
@@ -21,7 +21,7 @@ module Identify : sig
   | Idle
   | Invisible
   | Offline
-  [@@deriving sexp, yojson { strict = false }]
+  [@@deriving sexp, yojson]
 
   type presence = {
     since: Int64.t option;
@@ -29,7 +29,7 @@ module Identify : sig
     status: status;
     afk: bool;
   }
-  [@@deriving sexp, fields, yojson { strict = false }]
+  [@@deriving sexp, fields, yojson]
   type t = {
     token: string;
     properties: connection;
@@ -38,13 +38,13 @@ module Identify : sig
     guild_subscriptions: bool;
     intents: int;
   }
-  [@@deriving sexp, fields, yojson { strict = false }]
+  [@@deriving sexp, fields, yojson]
 
   val to_message : t -> Protocol.Send.t
 end
 
 module Heartbeat : sig
-  type t = int option [@@deriving sexp, yojson { strict = false }]
+  type t = int option [@@deriving sexp, yojson]
 
   val to_message : t -> Protocol.Send.t
 end
@@ -59,7 +59,7 @@ module Resume : sig
     session_id: string;
     seq: int option;
   }
-  [@@deriving sexp, fields, yojson { strict = false }]
+  [@@deriving sexp, fields, yojson]
 
   val to_message : t -> Protocol.Send.t
 end
