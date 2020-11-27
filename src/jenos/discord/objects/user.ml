@@ -1,5 +1,6 @@
 open! Core_kernel
 
+let (=) = Poly.(=)
 type t = {
   id: string;
   username: string;
@@ -15,4 +16,4 @@ type t = {
   premium_type: int option [@default None];
   public_flags: int option [@default None];
 }
-[@@deriving sexp, compare, fields, of_yojson { exn = true; strict = false }]
+[@@deriving sexp, compare, fields, yojson { strict = false }]

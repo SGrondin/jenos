@@ -36,7 +36,8 @@ let latch = Latch.(create ~cooldown:(Time.ms 400L))
 type _ handler =
 | JSON : Yojson.Safe.t handler
 | Ignore : unit handler
-| Parse : (Yojson.Safe.t -> 'a) -> 'a handler
+| Parse : (Yojson.Safe.t -> ('a, string) result) -> 'a handler
+| Parse_exn : (Yojson.Safe.t -> 'a) -> 'a handler
 
 let run : type a. headers:Header.t -> ?expect:int -> ?body:Body.t -> Code.meth -> Uri.t -> ?print_body:bool -> a handler -> a Lwt.t =
   fun ~headers ?(expect = 200) ?body meth uri ?(print_body = false) handler ->
@@ -57,7 +58,13 @@ let run : type a. headers:Header.t -> ?expect:int -> ?body:Body.t -> Code.meth -
     | Ignore ->
       Body.drain_body res_body
     | Parse f ->
-      force get_body_str >|= Yojson.Safe.from_string >|= f
+      force get_body_str >|= (fun s ->
+        Yojson.Safe.from_string s
+        |> f
+        |> Result.ok_or_failwith
+      )
+    | Parse_exn f ->
+      force get_body_str >|= (fun s -> Yojson.Safe.from_string s |> f)
     end
     in
     handle

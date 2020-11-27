@@ -9,15 +9,15 @@ type session_start_limit = {
   reset_after: int;
   max_concurrency: int;
 }
-[@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+[@@deriving sexp, fields, yojson { strict = false }]
 
 type response = {
   url: Call.Uri.t;
   shards: int;
   session_start_limit: session_start_limit;
 }
-[@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+[@@deriving sexp, fields, yojson { strict = false }]
 
 let bot ~token =
   let uri = Call.make_uri ["gateway"; "bot"] in
-  Call.run ~headers:(Call.headers ~token) `GET uri (Parse response_of_yojson_exn)
+  Call.run ~headers:(Call.headers ~token) `GET uri (Parse response_of_yojson)

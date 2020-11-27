@@ -4,14 +4,14 @@ module Hello : sig
   type t = {
     heartbeat_interval: int;
   }
-  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }] [@@unboxed]
+  [@@deriving sexp, fields, yojson { strict = false }] [@@unboxed]
 end
 
 module Invalid_session : sig
   type t = {
     must_reconnect: bool;
   }
-  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }] [@@unboxed]
+  [@@deriving sexp, fields, yojson { strict = false }] [@@unboxed]
 end
 
 module Ready : sig
@@ -22,7 +22,7 @@ module Ready : sig
     session_id: string;
     shard: int list option [@default None];
   }
-  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+  [@@deriving sexp, fields, yojson { strict = false }]
 end
 
 module Voice_state_update : sig
@@ -33,7 +33,7 @@ module Voice_state_update : sig
     member: Objects.Channel.member option [@default None];
     session_id: string;
   }
-  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+  [@@deriving sexp, fields, yojson { strict = false }]
 end
 
 module Guild_create : sig
@@ -42,7 +42,7 @@ module Guild_create : sig
     session_id: string;
     channel_id: string option;
   }
-  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+  [@@deriving sexp, fields, yojson { strict = false }]
 
   type t = {
     id: string;
@@ -51,5 +51,5 @@ module Guild_create : sig
     members: Objects.Channel.member list option [@default None];
     voice_states: voice_state list option [@default None];
   }
-  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+  [@@deriving sexp, fields, yojson { strict = false }]
 end

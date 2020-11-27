@@ -71,7 +71,7 @@ let handle_frame ~trigger_event login cancel send ({ internal_state; user_state 
 
   | Frame.{ opcode = Text; content; _ }
   | Frame.{ opcode = Binary; content; _ } ->
-    let raw = Yojson.Safe.from_string content |> Protocol.Recv.of_yojson_exn in
+    let raw = Yojson.Safe.from_string content |> Protocol.Recv.of_yojson |> Result.ok_or_failwith in
     let message = Message.parse raw in
     let%lwt user_state = trigger_event user_state (Before_action message) in
     Internal_state.received_seq raw.s internal_state;

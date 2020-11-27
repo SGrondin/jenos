@@ -114,7 +114,7 @@ let on_message_create { token; _ } = function
       bprintf buf "\n%s %s" (emoji_of_opt opt) text
     );
     let content = Buffer.contents buf in
-    let%lwt post = Rest.Channel.create_message ~token ~channel_id ~content (Parse Objects.Message.of_yojson_exn) in
+    let%lwt post = Rest.Channel.create_message ~token ~channel_id ~content (Parse Objects.Message.of_yojson) in
     Lwt_list.iter_s (fun { opt; _ } ->
       Rest.Channel.create_reaction ~token ~channel_id ~message_id:post.id ~emoji:(emoji_of_opt opt) Ignore
     ) poll.options

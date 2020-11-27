@@ -4,7 +4,7 @@ module Hello = struct
   type t = {
     heartbeat_interval: int;
   }
-  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }] [@@unboxed]
+  [@@deriving sexp, fields, yojson { strict = false }] [@@unboxed]
 end
 
 module Invalid_session = struct
@@ -15,10 +15,12 @@ module Invalid_session = struct
   let of_yojson x =
     [%of_yojson: bool] x
     |> Result.map ~f:(fun must_reconnect -> { must_reconnect })
-  let of_yojson_exn x = of_yojson x |> Result.ok_or_failwith
+
+  let to_yojson { must_reconnect } = `Bool must_reconnect
 end
 
 module Ready = struct
+  let (=) = Poly.(=)
   type t = {
     v: int;
     user: Objects.User.t;
@@ -26,10 +28,11 @@ module Ready = struct
     session_id: string;
     shard: int list option [@default None];
   }
-  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+  [@@deriving sexp, fields, yojson { strict = false }]
 end
 
 module Voice_state_update = struct
+  let (=) = Poly.(=)
   type t = {
     guild_id: string option [@default None];
     channel_id: string option;
@@ -37,7 +40,7 @@ module Voice_state_update = struct
     member: Objects.Channel.member option [@default None];
     session_id: string;
   }
-  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+  [@@deriving sexp, fields, yojson { strict = false }]
 end
 
 module Guild_create = struct
@@ -46,8 +49,9 @@ module Guild_create = struct
     session_id: string;
     channel_id: string option;
   }
-  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+  [@@deriving sexp, fields, yojson { strict = false }]
 
+  let (=) = Poly.(=)
   type t = {
     id: string;
     name: string;
@@ -55,5 +59,5 @@ module Guild_create = struct
     members: Objects.Channel.member list option [@default None];
     voice_states: voice_state list option [@default None];
   }
-  [@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+  [@@deriving sexp, fields, yojson { strict = false }]
 end

@@ -19,6 +19,18 @@ let type__of_yojson = function
 | `Int 6 -> Ok GUILD_STORE
 | json -> Error (sprintf "Impossible to parse JSON %s into a channel type" (Yojson.Safe.to_string json))
 
+let type__of_yojson_exn x = type__of_yojson x |> Result.ok_or_failwith
+
+let type__to_yojson = function
+| GUILD_TEXT -> `Int 0
+| DM -> `Int 1
+| GUILD_VOICE -> `Int 2
+| GROUP_DM -> `Int 3
+| GUILD_CATEGORY -> `Int 4
+| GUILD_NEWS -> `Int 5
+| GUILD_STORE -> `Int 6
+
+let (=) = Poly.(=)
 type t = {
   id: string;
   type_: type_ [@key "type"];
@@ -28,14 +40,14 @@ type t = {
   user_limit: int option [@default None];
   bitrate: int option [@default None];
 }
-[@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+[@@deriving sexp, fields, yojson { strict = false }]
 
 type member = {
   user: User.t option [@default None];
   nick: string option [@default None];
   roles: string list;
 }
-[@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+[@@deriving sexp, fields, yojson { strict = false }]
 
 let is_bot member_opt =
   Option.Monad_infix.(member_opt >>= user >>= User.bot)

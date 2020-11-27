@@ -17,6 +17,7 @@ type type_ =
 | GUILD_DISCOVERY_DISQUALIFIED
 | GUILD_DISCOVERY_REQUALIFIED
 [@@deriving sexp]
+
 let type__of_yojson = function
 | `Int 0 -> Ok DEFAULT
 | `Int 1 -> Ok RECIPIENT_ADD
@@ -35,6 +36,24 @@ let type__of_yojson = function
 | `Int 15 -> Ok GUILD_DISCOVERY_REQUALIFIED
 | json -> Error (sprintf "Impossible to parse JSON %s into a message type" (Yojson.Safe.to_string json))
 
+let type__to_yojson = function
+| DEFAULT -> `Int 0
+| RECIPIENT_ADD -> `Int 1
+| RECIPIENT_REMOVE -> `Int 2
+| CALL -> `Int 3
+| CHANNEL_NAME_CHANGE -> `Int 4
+| CHANNEL_ICON_CHANGE -> `Int 5
+| CHANNEL_PINNED_MESSAGE -> `Int 6
+| GUILD_MEMBER_JOIN -> `Int 7
+| USER_PREMIUM_GUILD_SUBSCRIPTION -> `Int 8
+| USER_PREMIUM_GUILD_SUBSCRIPTION_TIER_1 -> `Int 9
+| USER_PREMIUM_GUILD_SUBSCRIPTION_TIER_2 -> `Int 10
+| USER_PREMIUM_GUILD_SUBSCRIPTION_TIER_3 -> `Int 11
+| CHANNEL_FOLLOW_ADD -> `Int 12
+| GUILD_DISCOVERY_DISQUALIFIED -> `Int 14
+| GUILD_DISCOVERY_REQUALIFIED -> `Int 15
+
+let (=) = Poly.(=)
 type t = {
   id: string;
   channel_id: string;
@@ -43,4 +62,4 @@ type t = {
   content: string;
   type_: type_ [@key "type"];
 }
-[@@deriving sexp, fields, of_yojson { exn = true; strict = false }]
+[@@deriving sexp, fields, yojson { strict = false }]

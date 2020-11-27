@@ -48,19 +48,12 @@ module Yojson = struct
   include Yojson
   module Safe = struct
     include Safe
-    let sexp_of_t (json : Yojson.Safe.t) : Sexp.t =
-      let rec loop = function
-      | `String s -> Sexp.Atom s
-      | `Int x -> Sexp.Atom (Int.to_string x)
-      | `Float x -> Sexp.Atom (Float.to_string x)
-      | `Bool x -> Sexp.Atom (Bool.to_string x)
-      | `Null -> Sexp.List []
-      | `List ll -> Sexp.List (List.map ll ~f:loop)
-      | `Assoc ll -> Sexp.List (List.map ll ~f:(fun (k, v) ->
-          Sexp.List [Sexp.Atom k; loop v]
-        ))
-      in
-      Yojson.Safe.to_basic json |> loop
+
+    let sexp_of_t json = Sexp.Atom (Yojson.Safe.to_string json)
+
+    let t_of_sexp = function
+    | Sexp.Atom s -> Yojson.Safe.from_string s
+    | sexp -> failwithf "Invalid S-Exp for JSON: %s" (Sexp.to_string sexp) ()
   end
 end
 
@@ -72,7 +65,7 @@ module Recv = struct
     s: int option [@default None];
     d: Yojson.Safe.t [@default `Assoc []];
   }
-  [@@deriving sexp_of, fields, yojson { exn = true }]
+  [@@deriving sexp, fields, yojson]
 end
 
 module Send = struct
@@ -83,5 +76,5 @@ module Send = struct
     s: int option [@default None];
     d: Yojson.Safe.t;
   }
-  [@@deriving sexp_of, fields, to_yojson]
+  [@@deriving sexp, fields, yojson]
 end

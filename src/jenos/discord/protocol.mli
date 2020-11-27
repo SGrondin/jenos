@@ -25,7 +25,7 @@ module Recv : sig
     s: int option;
     d: Yojson.Safe.t;
   }
-  [@@deriving sexp_of, fields, yojson { exn = true }]
+  [@@deriving sexp, fields, yojson]
 end
 
 module Send : sig
@@ -35,5 +35,5 @@ module Send : sig
     s: int option [@default None];
     d: Yojson.Safe.t;
   }
-  [@@deriving sexp_of, fields, to_yojson]
+  [@@deriving sexp, fields, yojson]
 end

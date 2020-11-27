@@ -91,7 +91,7 @@ let on_message_create config = function
 | Objects.Message.{ id = _; type_ = DEFAULT; channel_id; content; author; _ } when String.(=) author.id config.poll_user_id ->
   begin match parse content with
   | Some { text; opts } ->
-    let%lwt posted = Rest.Channel.create_message ~token:config.token ~channel_id ~content:text (Parse Objects.Message.of_yojson_exn) in
+    let%lwt posted = Rest.Channel.create_message ~token:config.token ~channel_id ~content:text (Parse Objects.Message.of_yojson) in
     Lwt_list.iter_s (fun opt ->
       let emoji = emoji_of_opt opt in
       Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id:posted.id ~emoji Ignore

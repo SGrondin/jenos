@@ -10,11 +10,11 @@ type parsed =
 | Guild_create of Events.Guild_create.t
 | Message_create of Objects.Message.t
 | Other
-[@@deriving sexp_of]
+[@@deriving sexp]
 
 type t = {
   raw: Protocol.Recv.t;
   parsed: parsed;
-} [@@deriving sexp_of]
+} [@@deriving sexp]
 
 val parse : Protocol.Recv.t -> t

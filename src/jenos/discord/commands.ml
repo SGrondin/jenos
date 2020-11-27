@@ -6,7 +6,7 @@ module Identify = struct
     browser: string [@key "$browser"];
     device: string [@key "$device"];
   }
-  [@@deriving sexp, fields, yojson]
+  [@@deriving sexp, fields, yojson { strict = false }]
 
   type activity =
   | Game of string
@@ -14,6 +14,7 @@ module Identify = struct
   | Listening of string
   | Competing of string
   [@@deriving sexp]
+
   let activity_to_yojson activity : Yojson.Safe.t =
     let name, type_ = begin match activity with
     | Game s -> s, 0
@@ -26,6 +27,7 @@ module Identify = struct
       "name", `String name;
       "type", `Int type_;
     ]
+
   let activity_of_yojson = function
   | `Assoc ["game", `String s] -> Ok (Game s)
   | `Assoc ["streaming", `String s] -> Ok (Streaming s)
@@ -61,7 +63,7 @@ module Identify = struct
     status: status;
     afk: bool;
   }
-  [@@deriving sexp, fields, yojson]
+  [@@deriving sexp, fields, yojson { strict = false }]
   type t = {
     token: string;
     properties: connection;
@@ -70,7 +72,7 @@ module Identify = struct
     guild_subscriptions: bool;
     intents: int;
   }
-  [@@deriving sexp, fields, yojson]
+  [@@deriving sexp, fields, yojson { strict = false }]
   let to_message x : Protocol.Send.t = {
     op = Protocol.Opcode.Identify;
     t = None;
@@ -80,7 +82,7 @@ module Identify = struct
 end
 
 module Heartbeat = struct
-  type t = int option [@@deriving sexp, yojson]
+  type t = int option [@@deriving sexp, yojson { strict = false }]
   let to_message x : Protocol.Send.t = {
     op = Protocol.Opcode.Heartbeat;
     t = None;
@@ -104,7 +106,7 @@ module Resume = struct
     session_id: string;
     seq: int option;
   }
-  [@@deriving sexp, fields, yojson]
+  [@@deriving sexp, fields, yojson { strict = false }]
   let to_message x : Protocol.Send.t = {
     op = Protocol.Opcode.Resume;
     t = None;

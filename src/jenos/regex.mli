@@ -1,8 +1,8 @@
 open! Core_kernel
 
-type t [@@deriving sexp_of, of_yojson]
+type t [@@deriving sexp, yojson]
 
-val of_string: string -> t
+val create: string -> t
 
 val matching: t -> string -> bool
 
