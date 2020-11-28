@@ -211,9 +211,12 @@ end = struct
 
   let trigger_event user_state event =
     Lwt.catch (fun () -> Bot.on_event user_state event)
-      Lwt.Infix.(function
-      | Exit -> raise Exit
-      | exn -> Bot.on_exn exn >|= fun () -> user_state
+      (function
+      | Exit -> Exn.reraise Exit (Source_code_position.to_string [%here])
+      | exn ->
+        (* TODO: Change back to >|= once the stack leak is fixed *)
+        let%lwt () = Bot.on_exn exn in
+        Lwt.return user_state
       )
 
   let close_connection { ic; oc; send; cancel = _ } close =

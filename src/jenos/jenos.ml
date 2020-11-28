@@ -14,7 +14,8 @@ let create_bot config =
         vc_state = Track_vc.initial_state;
       }
 
-      let (>>>) f x = Lwt.map (fun () -> x) f
+      (* TODO: Change back to >|= once the stack leak is fixed *)
+      let (>>>) f x = let%lwt () = f in Lwt.return x
 
       let on_exn exn = Lwt_io.printlf "❌ Unexpected error: %s" (Exn.to_string exn)
 

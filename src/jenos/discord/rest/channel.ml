@@ -2,7 +2,6 @@ open! Core_kernel
 open! Cohttp
 open! Cohttp_lwt_unix
 module Body = Cohttp_lwt.Body
-open! Lwt.Infix
 
 module Payload = struct
   type t = {
