@@ -1,17 +1,11 @@
 open! Core_kernel
 
 module Hello : sig
-  type t = {
-    heartbeat_interval: int;
-  }
-  [@@deriving sexp, fields, yojson] [@@unboxed]
+  type t = { heartbeat_interval: int } [@@deriving sexp, fields, yojson] [@@unboxed]
 end
 
 module Invalid_session : sig
-  type t = {
-    resumable: bool;
-  }
-  [@@deriving sexp, fields, yojson] [@@unboxed]
+  type t = { resumable: bool } [@@deriving sexp, fields, yojson] [@@unboxed]
 end
 
 module Ready : sig

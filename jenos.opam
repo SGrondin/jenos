@@ -9,12 +9,12 @@ SGrondin
 """
 license: "SGrondin"
 tags: []
-homepage: "https://github.com/SGrondin/scaffolding"
-doc: "https://github.com/SGrondin/scaffolding"
-bug-reports: "https://github.com/SGrondin/scaffolding/issues"
+homepage: "https://github.com/SGrondin/jenos"
+doc: "https://github.com/SGrondin/jenos"
+bug-reports: "https://github.com/SGrondin/jenos/issues"
 depends: [
-  "ocaml" {= "4.10.0"}
-  "dune" {build & >= "1.9.0"}
+  "ocaml" { = "4.10.0"}
+  "dune" { >= "1.9.0"}
 
   "core" { >= "v0.14.0" }
   "ppx_expect"

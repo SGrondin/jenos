@@ -1,43 +1,38 @@
 open! Core_kernel
 
 module Hello = struct
-  type t = {
-    heartbeat_interval: int;
-  }
-  [@@deriving sexp, fields, yojson { strict = false }] [@@unboxed]
+  type t = { heartbeat_interval: int } [@@deriving sexp, fields, yojson { strict = false }] [@@unboxed]
 end
 
 module Invalid_session = struct
-  type t = {
-    resumable: bool;
-  }
-  [@@deriving sexp, fields] [@@unboxed]
-  let of_yojson x =
-    [%of_yojson: bool] x
-    |> Result.map ~f:(fun resumable -> { resumable })
+  type t = { resumable: bool } [@@deriving sexp, fields] [@@unboxed]
+
+  let of_yojson x = [%of_yojson: bool] x |> Result.map ~f:(fun resumable -> { resumable })
 
   let to_yojson { resumable } = `Bool resumable
 end
 
 module Ready = struct
-  let (=) = Poly.(=)
+  let ( = ) = Poly.( = )
+
   type t = {
     v: int;
     user: Objects.User.t;
     private_channels: unit list;
     session_id: string;
-    shard: int list option [@default None];
+    shard: int list option; [@default None]
   }
   [@@deriving sexp, fields, yojson { strict = false }]
 end
 
 module Voice_state_update = struct
-  let (=) = Poly.(=)
+  let ( = ) = Poly.( = )
+
   type t = {
-    guild_id: string option [@default None];
+    guild_id: string option; [@default None]
     channel_id: string option;
     user_id: string;
-    member: Objects.Channel.member option [@default None];
+    member: Objects.Channel.member option; [@default None]
     session_id: string;
   }
   [@@deriving sexp, fields, yojson { strict = false }]
@@ -51,13 +46,14 @@ module Guild_create = struct
   }
   [@@deriving sexp, fields, yojson { strict = false }]
 
-  let (=) = Poly.(=)
+  let ( = ) = Poly.( = )
+
   type t = {
     id: string;
     name: string;
-    member_count: int option [@default None];
-    members: Objects.Channel.member list option [@default None];
-    voice_states: voice_state list option [@default None];
+    member_count: int option; [@default None]
+    members: Objects.Channel.member list option; [@default None]
+    voice_states: voice_state list option; [@default None]
   }
   [@@deriving sexp, fields, yojson { strict = false }]
 end

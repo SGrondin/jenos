@@ -2,9 +2,10 @@ open! Core_kernel
 
 type t = Re.re * string
 
-let create s = Re.Perl.re ~opts:[`Caseless] s |> Re.Perl.compile, s
+let create s = Re.Perl.re ~opts:[ `Caseless ] s |> Re.Perl.compile, s
 
 let sexp_of_t (_re, s) = Sexp.Atom s
+
 let t_of_sexp = function
 | Sexp.Atom s -> create s
 | sexp -> failwithf "Invalid S-Exp for a Regex: %s" (Sexp.to_string sexp) ()

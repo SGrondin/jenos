@@ -1,26 +1,35 @@
 open! Core_kernel
-
 open Config
 
 let parser =
   let open Angstrom in
-  let digits = take_while1 (function
-    | '0' .. '9' -> true
-    | _ -> false
-    ) >>| Int.of_string
+  let digits =
+    take_while1 (function
+      | '0' .. '9' -> true
+      | _ -> false)
+    >>| Int.of_string
   in
   let one =
     let dot = option false (char '.' *> return true) in
-    let time = both digits dot >>| function
+    let time =
+      both digits dot >>| function
       | x, dot when x > 12 -> sprintf "%d:%d0pm" (x - 12) (if dot then 3 else 0)
       | x, dot -> sprintf "%d:%d0" x (if dot then 3 else 0)
     in
-    (time >>| Option.return) <|> (char '-' *> return None)
+    time >>| Option.return <|> char '-' *> return None
   in
   let start_day = option None (digits <* char '/' >>| Option.return) in
   lift2 Tuple2.create (string "Poll! " *> start_day) (sep_by1 (char ',') one)
 
-type opt = A | B | C | D | E | F [@@deriving sexp, enum, show { with_path = false }]
+type opt =
+  | A
+  | B
+  | C
+  | D
+  | E
+  | F
+[@@deriving sexp, enum, show { with_path = false }]
+
 let emoji_of_opt = function
 | A -> "🇦"
 | B -> "🇧"
@@ -30,45 +39,43 @@ let emoji_of_opt = function
 | F -> "🇫"
 
 type day =
-| Monday
-| Tuesday
-| Wednesday
-| Thursday
-| Friday
-| Saturday
-| Sunday
+  | Monday
+  | Tuesday
+  | Wednesday
+  | Thursday
+  | Friday
+  | Saturday
+  | Sunday
 [@@deriving sexp, enum, show { with_path = false }]
 
 type parsed = {
   text: string;
   opts: opt list;
-} [@@deriving sexp]
+}
+[@@deriving sexp]
 
 let parse raw =
   Angstrom.parse_string parser ~consume:All raw
   |> Result.ok
   |> Option.map ~f:(fun (start_day, times) ->
-    let start_day = Option.value_map start_day ~default:(day_to_enum Saturday) ~f:pred in
-    let text, opts =
-      List.foldi times ~init:([], 0) ~f:(fun i ((ll, n) as acc) -> function
-      | None -> acc
-      | Some x ->
-        let opt = opt_of_enum n |> Option.value_exn ~here:[% here] in
-        let s =
-          sprintf "%s: %s %s"
-            (show_opt opt)
-            ((start_day + (i / 2)) % 7 |> day_of_enum |> Option.value_exn ~here:[% here] |> show_day)
-            x
-        in
-        (s, opt) :: ll, n + 1
-      )
-      |> fst
-      |> List.rev
-      |> List.unzip
-      |> Tuple2.map_fst ~f:(String.concat ~sep:"\n")
-    in
-    { text; opts }
-  )
+         let start_day = Option.value_map start_day ~default:(day_to_enum Saturday) ~f:pred in
+         let text, opts =
+           List.foldi times ~init:([], 0) ~f:(fun i ((ll, n) as acc) -> function
+             | None -> acc
+             | Some x ->
+               let opt = opt_of_enum n |> Option.value_exn ~here:[%here] in
+               let s =
+                 sprintf "%s: %s %s" (show_opt opt)
+                   ((start_day + (i / 2)) % 7 |> day_of_enum |> Option.value_exn ~here:[%here] |> show_day)
+                   x
+               in
+               (s, opt) :: ll, n + 1)
+           |> fst
+           |> List.rev
+           |> List.unzip
+           |> Tuple2.map_fst ~f:(String.concat ~sep:"\n")
+         in
+         { text; opts })
 
 let%expect_test "D&D Poll Parser" =
   let test s = parse s |> [%sexp_of: parsed option] |> Sexp.to_string |> print_endline in
@@ -85,17 +92,23 @@ let%expect_test "D&D Poll Parser" =
   test "Poll! 4/10.,19.";
   [%expect {| (((text"A: Thursday 10:30\nB: Thursday 7:30pm")(opts(A B)))) |}];
   test "Poll! 5/10.,19.,13,-,-,14.,15";
-  [%expect {| (((text"A: Friday 10:30\nB: Friday 7:30pm\nC: Saturday 1:00pm\nD: Sunday 2:30pm\nE: Monday 3:00pm")(opts(A B C D E)))) |}]
+  [%expect
+    {| (((text"A: Friday 10:30\nB: Friday 7:30pm\nC: Saturday 1:00pm\nD: Sunday 2:30pm\nE: Monday 3:00pm")(opts(A B C D E)))) |}]
 
 let on_message_create config = function
-| Objects.Message.{ id = _; type_ = DEFAULT; channel_id; content; author; _ } when String.(=) author.id config.poll_user_id ->
-  begin match parse content with
+| Objects.Message.{ id = _; type_ = DEFAULT; channel_id; content; author; _ }
+  when String.( = ) author.id config.poll_user_id -> (
+  match parse content with
   | Some { text; opts } ->
-    let%lwt posted = Rest.Channel.create_message ~token:config.token ~channel_id ~content:text (Parse Objects.Message.of_yojson) in
-    Lwt_list.iter_s (fun opt ->
-      let emoji = emoji_of_opt opt in
-      Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id:posted.id ~emoji Ignore
-    ) opts
+    let%lwt posted =
+      Rest.Channel.create_message ~token:config.token ~channel_id ~content:text
+        (Parse Objects.Message.of_yojson)
+    in
+    Lwt_list.iter_s
+      (fun opt ->
+        let emoji = emoji_of_opt opt in
+        Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id:posted.id ~emoji Ignore)
+      opts
   | None -> Lwt.return_unit
-  end
+)
 | _ -> Lwt.return_unit

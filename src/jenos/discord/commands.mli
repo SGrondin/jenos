@@ -9,18 +9,18 @@ module Identify : sig
   [@@deriving sexp, fields, yojson]
 
   type activity =
-  | Game of string
-  | Streaming of string
-  | Listening of string
-  | Competing of string
+    | Game      of string
+    | Streaming of string
+    | Listening of string
+    | Competing of string
   [@@deriving sexp, yojson]
 
   type status =
-  | Online
-  | DND
-  | Idle
-  | Invisible
-  | Offline
+    | Online
+    | DND
+    | Idle
+    | Invisible
+    | Offline
   [@@deriving sexp, yojson]
 
   type presence = {
@@ -30,6 +30,7 @@ module Identify : sig
     afk: bool;
   }
   [@@deriving sexp, fields, yojson]
+
   type t = {
     token: string;
     properties: connection;

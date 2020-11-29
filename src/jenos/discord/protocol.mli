@@ -2,17 +2,17 @@ open! Core_kernel
 
 module Opcode : sig
   type t =
-  | Dispatch
-  | Heartbeat
-  | Identify
-  | Presence_update
-  | Voice_state_update
-  | Resume
-  | Reconnect
-  | Request_guild_members
-  | Invalid_session
-  | Hello
-  | Heartbeat_ACK
+    | Dispatch
+    | Heartbeat
+    | Identify
+    | Presence_update
+    | Voice_state_update
+    | Resume
+    | Reconnect
+    | Request_guild_members
+    | Invalid_session
+    | Hello
+    | Heartbeat_ACK
   [@@deriving sexp, yojson]
 
   val to_name : t -> string

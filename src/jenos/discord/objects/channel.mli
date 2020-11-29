@@ -1,13 +1,13 @@
 open! Core_kernel
 
 type type_ =
-| GUILD_TEXT
-| DM
-| GUILD_VOICE
-| GROUP_DM
-| GUILD_CATEGORY
-| GUILD_NEWS
-| GUILD_STORE
+  | GUILD_TEXT
+  | DM
+  | GUILD_VOICE
+  | GROUP_DM
+  | GUILD_CATEGORY
+  | GUILD_NEWS
+  | GUILD_STORE
 [@@deriving sexp, yojson]
 
 type t = {

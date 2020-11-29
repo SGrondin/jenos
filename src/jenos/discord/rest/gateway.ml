@@ -19,5 +19,5 @@ type response = {
 [@@deriving sexp, fields, yojson { strict = false }]
 
 let bot ~token =
-  let uri = Call.make_uri ["gateway"; "bot"] in
+  let uri = Call.make_uri [ "gateway"; "bot" ] in
   Call.run ~headers:(Call.headers ~token) `GET uri (Parse response_of_yojson)

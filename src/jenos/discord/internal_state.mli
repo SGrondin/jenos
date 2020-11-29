@@ -1,6 +1,9 @@
 open! Core_kernel
 
-type counter = { count: int; ack: int }
+type counter = {
+  count: int;
+  ack: int;
+}
 
 exception Discontinuity_error of counter
 

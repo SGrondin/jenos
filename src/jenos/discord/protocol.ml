@@ -2,18 +2,19 @@ open! Core_kernel
 
 module Opcode = struct
   type t =
-  | Dispatch
-  | Heartbeat
-  | Identify
-  | Presence_update
-  | Voice_state_update
-  | Resume
-  | Reconnect
-  | Request_guild_members
-  | Invalid_session
-  | Hello
-  | Heartbeat_ACK
+    | Dispatch
+    | Heartbeat
+    | Identify
+    | Presence_update
+    | Voice_state_update
+    | Resume
+    | Reconnect
+    | Request_guild_members
+    | Invalid_session
+    | Hello
+    | Heartbeat_ACK
   [@@deriving sexp, variants]
+
   let to_name = Variants.to_name
 
   let to_yojson : t -> Yojson.Safe.t = function
@@ -46,6 +47,7 @@ end
 
 module Yojson = struct
   include Yojson
+
   module Safe = struct
     include Safe
 
@@ -58,22 +60,24 @@ module Yojson = struct
 end
 
 module Recv = struct
-  let (=) = Poly.(=)
+  let ( = ) = Poly.( = )
+
   type t = {
     op: Opcode.t;
-    t: string option [@default None];
-    s: int option [@default None];
-    d: Yojson.Safe.t [@default `Assoc []];
+    t: string option; [@default None]
+    s: int option; [@default None]
+    d: Yojson.Safe.t; [@default `Assoc []]
   }
   [@@deriving sexp, fields, yojson]
 end
 
 module Send = struct
-  let (=) = Poly.(=)
+  let ( = ) = Poly.( = )
+
   type t = {
     op: Opcode.t;
-    t: string option [@default None];
-    s: int option [@default None];
+    t: string option; [@default None]
+    s: int option; [@default None]
     d: Yojson.Safe.t;
   }
   [@@deriving sexp, fields, yojson]

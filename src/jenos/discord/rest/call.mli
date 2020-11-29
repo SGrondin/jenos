@@ -1,10 +1,10 @@
 open! Core_kernel
 
 type _ handler =
-| JSON : Yojson.Safe.t handler
-| Ignore : unit handler
-| Parse : (Yojson.Safe.t -> ('a, string) result) -> 'a handler
-| Parse_exn : (Yojson.Safe.t -> 'a) -> 'a handler
+  | JSON : Yojson.Safe.t handler
+  | Ignore : unit handler
+  | Parse     : (Yojson.Safe.t -> ('a, string) result) -> 'a handler
+  | Parse_exn : (Yojson.Safe.t -> 'a) -> 'a handler
 
 module Uri : sig
   type t = Uri.t [@@deriving sexp, yojson]
