@@ -1,7 +1,5 @@
 open! Core_kernel
 
-let ( = ) = Poly.( = )
-
 type t = {
   id: string;
   username: string;

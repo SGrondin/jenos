@@ -5,3 +5,4 @@ _build/
 **/.merlin
 *.txt
 config*
+test.ml

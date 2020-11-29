@@ -13,8 +13,6 @@ module Invalid_session = struct
 end
 
 module Ready = struct
-  let ( = ) = Poly.( = )
-
   type t = {
     v: int;
     user: Objects.User.t;
@@ -26,8 +24,6 @@ module Ready = struct
 end
 
 module Voice_state_update = struct
-  let ( = ) = Poly.( = )
-
   type t = {
     guild_id: string option; [@default None]
     channel_id: string option;
@@ -45,8 +41,6 @@ module Guild_create = struct
     channel_id: string option;
   }
   [@@deriving sexp, fields, yojson { strict = false }]
-
-  let ( = ) = Poly.( = )
 
   type t = {
     id: string;

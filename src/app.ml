@@ -9,6 +9,14 @@ let () =
       in
       ()
 
+let () =
+  Lwt_engine.set ~transfer:true ~destroy:true
+    ((* Linux *)
+    try new Lwt_engine.libev ~backend:Lwt_engine.Ev_backend.epoll () with
+    | _ ->
+      (* MacOS *)
+      new Lwt_engine.libev ~backend:Lwt_engine.Ev_backend.kqueue ())
+
 let get_print_config filename =
   let open Jenos__ in
   let%lwt config =

@@ -53,8 +53,6 @@ let type__to_yojson = function
 | GUILD_DISCOVERY_DISQUALIFIED -> `Int 14
 | GUILD_DISCOVERY_REQUALIFIED -> `Int 15
 
-let ( = ) = Poly.( = )
-
 type t = {
   id: string;
   channel_id: string;

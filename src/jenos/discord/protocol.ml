@@ -60,8 +60,6 @@ module Yojson = struct
 end
 
 module Recv = struct
-  let ( = ) = Poly.( = )
-
   type t = {
     op: Opcode.t;
     t: string option; [@default None]
@@ -72,8 +70,6 @@ module Recv = struct
 end
 
 module Send = struct
-  let ( = ) = Poly.( = )
-
   type t = {
     op: Opcode.t;
     t: string option; [@default None]

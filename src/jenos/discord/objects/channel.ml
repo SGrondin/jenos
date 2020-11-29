@@ -29,8 +29,6 @@ let type__to_yojson = function
 | GUILD_NEWS -> `Int 5
 | GUILD_STORE -> `Int 6
 
-let ( = ) = Poly.( = )
-
 type t = {
   id: string;
   type_: type_; [@key "type"]

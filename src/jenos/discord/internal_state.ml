@@ -4,6 +4,7 @@ type counter = {
   count: int;
   ack: int;
 }
+[@@deriving sexp]
 
 exception Discontinuity_error of counter
 

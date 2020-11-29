@@ -18,6 +18,7 @@ type event =
       content: string;
     }
   | Error_discontinuity        of Internal_state.counter
+[@@deriving sexp]
 
 val in_background : on_exn:(exn -> unit Lwt.t) -> (unit -> unit Lwt.t) -> unit
 

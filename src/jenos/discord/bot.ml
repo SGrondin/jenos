@@ -24,6 +24,7 @@ type event =
       content: string;
     }
   | Error_discontinuity        of Internal_state.counter
+[@@deriving sexp]
 
 type connection = {
   ic: Lwt_io.input_channel;
@@ -137,13 +138,13 @@ let connect ~trigger_event (Login.{ token; _ } as login) state =
   in
 
   let cancel_p, cancel = Lwt.wait () in
-  let cancelable_recv () = Lwt.choose [ cancel_p; recv () ] in
-  let send_timeout frame = Lwt_unix.with_timeout 1.0 (fun () -> send frame) in
+  let cancelable_recv cancel_p recv () = Lwt.pick [ Lwt.protected cancel_p; recv () ] in
+  let send_timeout send frame = Lwt_unix.with_timeout 1.0 (fun () -> send frame) in
 
-  let connection = { ic; oc; send = send_timeout; cancel } in
+  let connection = { ic; oc; send = send_timeout send; cancel } in
 
-  shutdown := Some (make_shutdown send_timeout);
-  let%lwt action = event_loop ~trigger_event login connection cancelable_recv state in
+  shutdown := Some (make_shutdown (send_timeout send));
+  let%lwt action = event_loop ~trigger_event login connection (cancelable_recv cancel_p recv) state in
   Lwt.return (action, connection)
 
 let rec connection_loop ~trigger_event ~on_exn ~close_connection login blank_state previous_state =
