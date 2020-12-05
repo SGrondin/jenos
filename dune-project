@@ -1,2 +1,2 @@
-(lang dune 2.4)
-(name scaffolding)
+(lang dune 2.0)
+(name jenos)

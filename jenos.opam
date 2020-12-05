@@ -12,9 +12,14 @@ tags: []
 homepage: "https://github.com/SGrondin/jenos"
 doc: "https://github.com/SGrondin/jenos"
 bug-reports: "https://github.com/SGrondin/jenos/issues"
+pin-depends: [
+  [ "discord.0.9.0" "/Users/simongrondin/dev/discord" ]
+]
 depends: [
   "ocaml" { = "4.10.0"}
-  "dune" { >= "1.9.0"}
+  "dune" { >= "2.0.0"}
+
+  "discord"
 
   "core" { >= "v0.14.0" }
   "ppx_expect"
@@ -25,15 +30,6 @@ depends: [
   "lwt" { >= "5.2.0" & < "6.0.0" }
   "lwt_ppx" { >= "2.0.1" & < "3.0.0" }
 
-  "cohttp" { >= "2.5.4" }
-  "cohttp-lwt-unix" { >= "2.5.4" }
-  "cohttp-lwt-jsoo" { >= "2.5.4" }
-
   "yojson"
   "ppx_deriving_yojson"
-
-  "tls"
-
-  "websocket"
-  "websocket-lwt-unix"
 ]
