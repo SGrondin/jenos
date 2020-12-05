@@ -14,6 +14,7 @@ let code_of_close = function
 type event =
   | Before_action              of Message.t
   | After_action               of Message.t
+  | Before_connecting          of Rest.Gateway.t
   | Before_reconnecting
   | Error_connection_closed
   | Error_connection_reset
@@ -117,19 +118,23 @@ let rec event_loop ~trigger_event login connection recv ({ internal_state; user_
   | x -> Lwt.return x
 
 let connect ~trigger_event (Login.{ token; _ } as login) state =
-  let%lwt res = Rest.Gateway.bot ~token in
+  let%lwt gateway = Rest.Gateway.bot ~token in
   let uri =
     begin
-      match Uri.scheme res.url with
+      match Uri.scheme gateway.url with
       | None
        |Some "wss" ->
-        Uri.with_scheme res.url (Some "https")
-      | Some "ws" -> Uri.with_scheme res.url (Some "http")
+        Uri.with_scheme gateway.url (Some "https")
+      | Some "ws" -> Uri.with_scheme gateway.url (Some "http")
       | Some x -> failwithf "Invalid scheme in WS connect: %s" x ()
     end
     |> Fn.flip Uri.add_query_params [ "v", [ "8" ]; "encoding", [ "json" ] ]
   in
 
+  let%lwt state =
+    let%lwt user_state = trigger_event state.user_state (Before_connecting gateway) in
+    Lwt.return { state with user_state }
+  in
   let%lwt recv, send, ic, oc =
     let%lwt endp = Resolver_lwt.resolve_uri ~uri Resolver_lwt_unix.system in
     let ctx = Conduit_lwt_unix.default_ctx in

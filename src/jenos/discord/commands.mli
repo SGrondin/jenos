@@ -21,6 +21,7 @@ module Identify : sig
     | Idle
     | Invisible
     | Offline
+    | Unknown_status of string
   [@@deriving sexp, yojson]
 
   type presence = {

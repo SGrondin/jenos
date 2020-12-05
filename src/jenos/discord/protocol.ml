@@ -13,6 +13,7 @@ module Opcode = struct
     | Invalid_session
     | Hello
     | Heartbeat_ACK
+    | Unknown               of int
   [@@deriving sexp, variants]
 
   let to_name = Variants.to_name
@@ -29,6 +30,7 @@ module Opcode = struct
   | Invalid_session -> `Int 9
   | Hello -> `Int 10
   | Heartbeat_ACK -> `Int 11
+  | Unknown x -> `Int x
 
   let of_yojson : Yojson.Safe.t -> (t, string) result = function
   | `Int 0 -> Ok Dispatch
@@ -42,6 +44,7 @@ module Opcode = struct
   | `Int 9 -> Ok Invalid_session
   | `Int 10 -> Ok Hello
   | `Int 11 -> Ok Heartbeat_ACK
+  | `Int x -> Ok (Unknown x)
   | x -> Error (sprintf "Invalid opcode type: %s" (Yojson.Safe.to_string x))
 end
 

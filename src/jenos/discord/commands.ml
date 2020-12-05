@@ -38,6 +38,7 @@ module Identify = struct
     | Idle
     | Invisible
     | Offline
+    | Unknown_status of string
   [@@deriving sexp]
 
   let status_to_yojson = function
@@ -46,6 +47,7 @@ module Identify = struct
   | Idle -> `String "idle"
   | Invisible -> `String "invisible"
   | Offline -> `String "offline"
+  | Unknown_status s -> `String s
 
   let status_of_yojson = function
   | `String "online" -> Ok Online
@@ -53,7 +55,8 @@ module Identify = struct
   | `String "idle" -> Ok Idle
   | `String "invisible" -> Ok Invisible
   | `String "offline" -> Ok Offline
-  | json -> Error (sprintf "Invalid status: %s" (Yojson.Safe.to_string json))
+  | `String s -> Ok (Unknown_status s)
+  | json -> Error (sprintf "Invalid status: '%s'" (Yojson.Safe.to_string json))
 
   type presence = {
     since: Int64.t option;

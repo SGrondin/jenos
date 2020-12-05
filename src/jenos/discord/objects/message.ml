@@ -16,6 +16,8 @@ type type_ =
   | CHANNEL_FOLLOW_ADD
   | GUILD_DISCOVERY_DISQUALIFIED
   | GUILD_DISCOVERY_REQUALIFIED
+  | REPLY
+  | Unknown_type                           of int
 [@@deriving sexp]
 
 let type__of_yojson = function
@@ -34,7 +36,9 @@ let type__of_yojson = function
 | `Int 12 -> Ok CHANNEL_FOLLOW_ADD
 | `Int 14 -> Ok GUILD_DISCOVERY_DISQUALIFIED
 | `Int 15 -> Ok GUILD_DISCOVERY_REQUALIFIED
-| json -> Error (sprintf "Impossible to parse JSON %s into a message type" (Yojson.Safe.to_string json))
+| `Int 19 -> Ok REPLY
+| `Int x -> Ok (Unknown_type x)
+| json -> Error (sprintf "Impossible to parse JSON '%s' into a message type" (Yojson.Safe.to_string json))
 
 let type__to_yojson = function
 | DEFAULT -> `Int 0
@@ -52,6 +56,8 @@ let type__to_yojson = function
 | CHANNEL_FOLLOW_ADD -> `Int 12
 | GUILD_DISCOVERY_DISQUALIFIED -> `Int 14
 | GUILD_DISCOVERY_REQUALIFIED -> `Int 15
+| REPLY -> `Int 19
+| Unknown_type x -> `Int x
 
 type t = {
   id: string;
@@ -60,5 +66,6 @@ type t = {
   member: Channel.member option; [@default None]
   content: string;
   type_: type_; [@key "type"]
+  referenced_message: t option; [@default None]
 }
 [@@deriving sexp, fields, yojson { strict = false }]

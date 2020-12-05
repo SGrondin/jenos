@@ -8,6 +8,7 @@ type type_ =
   | GUILD_CATEGORY
   | GUILD_NEWS
   | GUILD_STORE
+  | Unknown_type   of int
 [@@deriving sexp, yojson]
 
 type t = {

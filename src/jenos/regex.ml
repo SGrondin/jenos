@@ -14,7 +14,7 @@ let to_yojson (_re, s) = `String s
 
 let of_yojson = function
 | `String s -> Result.try_with (fun () -> create s) |> Result.map_error ~f:Exn.to_string
-| json -> Error (sprintf "Impossible to parse JSON %s into a regex type" (Yojson.Safe.to_string json))
+| json -> Error (sprintf "Impossible to parse JSON '%s' into a regex type" (Yojson.Safe.to_string json))
 
 let matching (re, _s) str = Re.execp re str
 

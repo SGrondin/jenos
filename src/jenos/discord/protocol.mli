@@ -13,6 +13,7 @@ module Opcode : sig
     | Invalid_session
     | Hello
     | Heartbeat_ACK
+    | Unknown               of int
   [@@deriving sexp, yojson]
 
   val to_name : t -> string

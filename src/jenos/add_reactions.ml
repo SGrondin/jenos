@@ -2,7 +2,8 @@ open! Core_kernel
 open Config
 
 let on_message_create config = function
-| Objects.Message.{ id = message_id; type_ = DEFAULT; channel_id; content; _ } ->
+| Objects.Message.{ id = message_id; type_ = REPLY; channel_id; content; _ }
+ |Objects.Message.{ id = message_id; type_ = DEFAULT; channel_id; content; _ } ->
   let emojis =
     List.filter_map config.reactions ~f:(function
       | { regex; emojis } when Regex.matching regex content -> Some emojis

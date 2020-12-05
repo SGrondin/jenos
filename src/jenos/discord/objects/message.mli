@@ -16,6 +16,8 @@ type type_ =
   | CHANNEL_FOLLOW_ADD
   | GUILD_DISCOVERY_DISQUALIFIED
   | GUILD_DISCOVERY_REQUALIFIED
+  | REPLY
+  | Unknown_type                           of int
 [@@deriving sexp, yojson]
 
 type t = {
@@ -25,5 +27,6 @@ type t = {
   member: Channel.member option;
   content: string;
   type_: type_;
+  referenced_message: t option;
 }
 [@@deriving sexp, fields, yojson]

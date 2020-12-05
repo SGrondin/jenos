@@ -34,11 +34,12 @@ let create_bot config =
     | Error_discontinuity { count; ack } ->
       Lwt_io.printlf "❌ Discontinuity error: ACK = %d but COUNT = %d. Closing the connection" ack count
       >>> state
+    | Before_connecting gateway ->
+      Lwt_io.printl (Rest.Gateway.sexp_of_t gateway |> Sexp.to_string) >>> state
     | Before_reconnecting -> Lwt_io.printl "🌐 Reconnecting..." >>> state
     (* READY *)
-    | Before_action { parsed = Ready _; raw = { d; _ } } ->
-      Lwt_io.printlf "✅ READY! %s" (Yojson.Safe.to_string d)
-      >>> { vc_state = { vc_state with just_started = false } }
+    | Before_action { parsed = Ready _; _ } ->
+      Lwt_io.printl "✅ READY!" >>> { vc_state = { vc_state with just_started = false } }
     (* RECONNECT *)
     | Before_action { parsed = Reconnect; _ } ->
       Lwt_io.printl "⚠️ Received a Reconnect request." >>> state
@@ -58,6 +59,7 @@ let create_bot config =
       Lwt.return { vc_state = { vc_state with tracker } }
     (* MESSAGE_CREATE *)
     | After_action { parsed = Message_create message; _ } ->
+      print_endline @@ (Objects.Message.sexp_of_t message |> Sexp.to_string_hum);
       in_background ~on_exn (fun () ->
           Lwt.join
             [

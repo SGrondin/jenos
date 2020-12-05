@@ -8,6 +8,7 @@ type type_ =
   | GUILD_CATEGORY
   | GUILD_NEWS
   | GUILD_STORE
+  | Unknown_type   of int
 [@@deriving sexp]
 
 let type__of_yojson = function
@@ -18,7 +19,8 @@ let type__of_yojson = function
 | `Int 4 -> Ok GUILD_CATEGORY
 | `Int 5 -> Ok GUILD_NEWS
 | `Int 6 -> Ok GUILD_STORE
-| json -> Error (sprintf "Impossible to parse JSON %s into a channel type" (Yojson.Safe.to_string json))
+| `Int x -> Ok (Unknown_type x)
+| json -> Error (sprintf "Impossible to parse JSON '%s' into a channel type" (Yojson.Safe.to_string json))
 
 let type__to_yojson = function
 | GUILD_TEXT -> `Int 0
@@ -28,6 +30,7 @@ let type__to_yojson = function
 | GUILD_CATEGORY -> `Int 4
 | GUILD_NEWS -> `Int 5
 | GUILD_STORE -> `Int 6
+| Unknown_type x -> `Int x
 
 type t = {
   id: string;

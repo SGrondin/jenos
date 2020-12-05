@@ -97,6 +97,7 @@ let%expect_test "D&D Poll Parser" =
 
 let on_message_create config = function
 | Objects.Message.{ id = _; type_ = DEFAULT; channel_id; content; author; _ }
+ |Objects.Message.{ id = _; type_ = REPLY; channel_id; content; author; _ }
   when String.( = ) author.id config.poll_user_id -> (
   match parse content with
   | Some { text; opts } ->

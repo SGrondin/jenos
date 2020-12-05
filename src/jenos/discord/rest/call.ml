@@ -21,7 +21,7 @@ module Uri = struct
 
   let of_yojson : Yojson.Safe.t -> (t, string) result = function
   | `String s -> Ok (of_string s)
-  | json -> Error (sprintf "Impossible to parse JSON %s into an URI" (Yojson.Safe.to_string json))
+  | json -> Error (sprintf "Impossible to parse JSON '%s' into an URI" (Yojson.Safe.to_string json))
 end
 
 (* https://discord.com/api/v8/ *)

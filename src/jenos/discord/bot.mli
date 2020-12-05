@@ -8,6 +8,7 @@ type close =
 type event =
   | Before_action              of Message.t
   | After_action               of Message.t
+  | Before_connecting          of Rest.Gateway.t
   | Before_reconnecting
   | Error_connection_closed
   | Error_connection_reset

@@ -8,11 +8,11 @@ type session_start_limit = {
 }
 [@@deriving sexp, fields, yojson]
 
-type response = {
+type t = {
   url: Call.Uri.t;
   shards: int;
   session_start_limit: session_start_limit;
 }
 [@@deriving sexp, fields, yojson]
 
-val bot : token:string -> response Lwt.t
+val bot : token:string -> t Lwt.t

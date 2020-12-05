@@ -101,7 +101,8 @@ let%expect_test "Poll Parser" =
   ()
 
 let on_message_create { token; _ } = function
-| Objects.Message.{ id = message_id; type_ = DEFAULT; channel_id; content; _ } -> (
+| Objects.Message.{ id = message_id; type_ = DEFAULT; channel_id; content; _ }
+ |Objects.Message.{ id = message_id; type_ = REPLY; channel_id; content; _ } -> (
   match parse content with
   | Some (Error msg) ->
     Rest.Channel.create_message ~token ~channel_id ~content:(sprintf ":x: %s" msg) Ignore
