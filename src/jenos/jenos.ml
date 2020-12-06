@@ -59,7 +59,6 @@ let create_bot config =
       Lwt.return { vc_state = { vc_state with tracker } }
     (* MESSAGE_CREATE *)
     | After_action { parsed = Message_create message; _ } ->
-      print_endline @@ (Objects.Message.sexp_of_t message |> Sexp.to_string_hum);
       in_background ~on_exn (fun () ->
           Lwt.join
             [
