@@ -47,11 +47,11 @@ let () =
         Lwt.return_unit
       | args ->
         let filename = if Array.length args >= 2 then args.(1) else default_filename in
-        let%lwt config = get_print_config filename in
+        let%lwt ({ token; activity_type; activity_name; _ } as config) = get_print_config filename in
         Discord.Login.(
-          create ~token:config.token
+          create ~token
             ~intents:[ GUILDS; GUILD_VOICE_STATES; GUILD_MESSAGES ]
-            ?activity:config.status ())
+            ?activity_name ?activity_type ())
         |> Jenos.create_bot config)
   with
   | Exit -> print_endline "Exit"

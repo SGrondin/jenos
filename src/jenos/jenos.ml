@@ -10,10 +10,7 @@ let create_bot config =
 
     let create () = { vc_state = Track_vc.initial_state }
 
-    (* TODO: Change back to >|= once the stack leak is fixed *)
-    let ( >>> ) f x =
-      let%lwt () = f in
-      Lwt.return x
+    let ( >>> ) f x = Lwt.Infix.(f >|= fun () -> x)
 
     let on_exn exn = Lwt_io.printlf "❌ Unexpected error: %s" (Exn.to_string exn)
 

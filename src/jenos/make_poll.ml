@@ -101,24 +101,27 @@ let%expect_test "Poll Parser" =
   ()
 
 let on_message_create { token; _ } = function
-| Objects.Message.{ id = message_id; type_ = DEFAULT; channel_id; content; _ }
- |Objects.Message.{ id = message_id; type_ = REPLY; channel_id; content; _ } -> (
+| Data.Message.{ id = message_id; type_ = DEFAULT; channel_id; content; _ }
+ |Data.Message.{ id = message_id; type_ = REPLY; channel_id; content; _ } -> (
+  let channel_id = Basics.Snowflake.to_string channel_id in
   match parse content with
   | Some (Error msg) ->
     Rest.Channel.create_message ~token ~channel_id ~content:(sprintf ":x: %s" msg) Ignore
   | Some (Ok poll) ->
+    let message_id = Basics.Snowflake.to_string message_id in
     let%lwt () = Rest.Channel.delete_message ~token ~channel_id ~message_id in
     let buf = Buffer.create 64 in
     Buffer.add_string buf poll.question;
     List.iter poll.options ~f:(fun { opt; text } -> bprintf buf "\n%s %s" (emoji_of_opt opt) text);
     let content = Buffer.contents buf in
     let%lwt post =
-      Rest.Channel.create_message ~token ~channel_id ~content (Parse Objects.Message.of_yojson)
+      Rest.Channel.create_message ~token ~channel_id ~content (Parse Data.Message.of_yojson)
     in
     Lwt_list.iter_s
       (fun { opt; _ } ->
-        Rest.Channel.create_reaction ~token ~channel_id ~message_id:post.id ~emoji:(emoji_of_opt opt)
-          Ignore)
+        Rest.Channel.create_reaction ~token ~channel_id
+          ~message_id:(Basics.Snowflake.to_string post.id)
+          ~emoji:(emoji_of_opt opt) Ignore)
       poll.options
   | None -> Lwt.return_unit
 )
