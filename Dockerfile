@@ -11,8 +11,6 @@ RUN opam update \
 
 COPY . .
 
-RUN opam upgrade discord
-
 ENV DUNE_PROFILE release
 
 RUN sudo chown -R opam /app \

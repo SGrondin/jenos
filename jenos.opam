@@ -13,7 +13,7 @@ homepage: "https://github.com/SGrondin/jenos"
 doc: "https://github.com/SGrondin/jenos"
 bug-reports: "https://github.com/SGrondin/jenos/issues"
 pin-depends: [
-  [ "discord.0.9.0" "git+https://github.com/SGrondin/discord.git" ]
+  [ "discord.0.9.0" "git+https://github.com/SGrondin/discord.git#3c73f9a" ]
   # [ "discord.0.9.0" "/Users/simongrondin/dev/discord" ]
 ]
 depends: [
