@@ -11,7 +11,7 @@ RUN opam update \
 
 COPY . .
 
-RUN opam upgrade discord
+RUN opam reinstall discord
 
 ENV DUNE_PROFILE release
 
