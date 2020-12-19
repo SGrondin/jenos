@@ -11,6 +11,8 @@ RUN opam update \
 
 COPY . .
 
+RUN OPAMYES=1 opam pin add discord 'git+https://github.com/SGrondin/discord.git#main'
+
 ENV DUNE_PROFILE release
 
 RUN sudo chown -R opam /app \
