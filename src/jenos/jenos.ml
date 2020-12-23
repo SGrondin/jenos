@@ -35,27 +35,26 @@ let create_bot config =
       Lwt_io.printl (Rest.Gateway.sexp_of_t gateway |> Sexp.to_string) >>> state
     | Before_reconnecting -> Lwt_io.printl "🌐 Reconnecting..." >>> state
     (* READY *)
-    | Before_action { parsed = Ready _; _ } ->
+    | Msg (Ready _) ->
       Lwt_io.printl "✅ READY!" >>> { vc_state = { vc_state with just_started = false } }
     (* RECONNECT *)
-    | Before_action { parsed = Reconnect; _ } ->
-      Lwt_io.printl "⚠️ Received a Reconnect request." >>> state
+    | Msg Reconnect -> Lwt_io.printl "⚠️ Received a Reconnect request." >>> state
     (* RESUMED *)
-    | Before_action { parsed = Resumed; _ } -> Lwt_io.printl "▶️ Resumed" >>> state
+    | Msg Resumed -> Lwt_io.printl "▶️ Resumed" >>> state
     (* INVALID_SESSION *)
-    | Before_action { parsed = Invalid_session { resumable }; _ } ->
+    | Msg (Invalid_session { resumable }) ->
       Lwt_io.printlf "⚠️ Session rejected (resumable: %b), starting a new session..." resumable
       >>> state
     (* VOICE_STATE_UPDATE *)
-    | After_action { parsed = Voice_state_update vsu; _ } ->
+    | Msg (Voice_state_update vsu) ->
       let%lwt tracker = Track_vc.on_voice_state_update config vc_state vsu in
       Lwt.return { vc_state = { vc_state with tracker } }
     (* GUILD_CREATE *)
-    | After_action { parsed = Guild_create gc; _ } ->
+    | Msg (Guild_create gc) ->
       let%lwt tracker = Track_vc.on_guild_create config vc_state gc in
       Lwt.return { vc_state = { vc_state with tracker } }
     (* MESSAGE_CREATE *)
-    | After_action { parsed = Message_create message; _ } ->
+    | Msg (Message_create message) ->
       in_background ~on_exn (fun () ->
           Lwt.join
             [
