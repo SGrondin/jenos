@@ -63,8 +63,8 @@ let create_bot config =
               Add_reactions.on_message_create config message;
             ]);
       Lwt.return state
-    | Payload ({ op = Dispatch; _ } as payload) ->
-      Lwt_io.printl ([%sexp_of: Data.Payload.t] payload |> Sexp.to_string_hum) >>> state
+    (* | Payload ({ op = Dispatch; _ } as payload) -> *)
+    (* Lwt_io.printl ([%sexp_of: Data.Payload.t] payload |> Sexp.to_string_hum) >>> state *)
     (* Re-test *)
     (* | Msg (Invite_create x) ->
          Lwt_io.printlf "Invite_create!!! %s"
