@@ -10,9 +10,9 @@ let on_message_create config = function
       | _ -> None)
     |> List.concat_no_order
   in
-  let channel_id = Basics.Snowflake.to_string channel_id in
-  let message_id = Basics.Snowflake.to_string message_id in
   Lwt_list.iter_s
-    (fun emoji -> Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id ~emoji Ignore)
+    (fun emoji ->
+      Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id
+        ~emoji:(`Unicode_emoji emoji))
     emojis
 | _ -> Lwt.return_unit

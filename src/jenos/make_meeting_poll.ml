@@ -31,12 +31,12 @@ type opt =
 [@@deriving sexp, enum, show { with_path = false }]
 
 let emoji_of_opt = function
-| A -> "🇦"
-| B -> "🇧"
-| C -> "🇨"
-| D -> "🇩"
-| E -> "🇪"
-| F -> "🇫"
+| A -> `Unicode_emoji "🇦"
+| B -> `Unicode_emoji "🇧"
+| C -> `Unicode_emoji "🇨"
+| D -> `Unicode_emoji "🇩"
+| E -> `Unicode_emoji "🇪"
+| F -> `Unicode_emoji "🇫"
 
 type day =
   | Monday
@@ -99,19 +99,15 @@ let on_message_create config = function
 | Data.Message.{ id = _; type_ = DEFAULT; channel_id; content; author; _ }
  |Data.Message.{ id = _; type_ = REPLY; channel_id; content; author; _ }
   when Basics.Snowflake.equal author.id config.poll_user_id -> (
-  let channel_id = Basics.Snowflake.to_string channel_id in
   match parse content with
   | Some { text; opts } ->
-    let%lwt posted =
+    let%lwt { id = message_id; _ } =
       Rest.Channel.create_message ~token:config.token ~channel_id ~content:text
-        (Parse Data.Message.of_yojson)
     in
     Lwt_list.iter_s
       (fun opt ->
         let emoji = emoji_of_opt opt in
-        Rest.Channel.create_reaction ~token:config.token ~channel_id
-          ~message_id:(Basics.Snowflake.to_string posted.id)
-          ~emoji Ignore)
+        Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id ~emoji)
       opts
   | None -> Lwt.return_unit
 )

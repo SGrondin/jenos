@@ -14,32 +14,32 @@ type poll = {
 [@@deriving sexp]
 
 let emoji_of_opt = function
-| 'A' -> "🇦"
-| 'B' -> "🇧"
-| 'C' -> "🇨"
-| 'D' -> "🇩"
-| 'E' -> "🇪"
-| 'F' -> "🇫"
-| 'G' -> "🇬"
-| 'H' -> "🇭"
-| 'I' -> "🇮"
-| 'J' -> "🇯"
-| 'K' -> "🇰"
-| 'L' -> "🇱"
-| 'M' -> "🇲"
-| 'N' -> "🇳"
-| 'O' -> "🇴"
-| 'P' -> "🇵"
-| 'Q' -> "🇶"
-| 'R' -> "🇷"
-| 'S' -> "🇸"
-| 'T' -> "🇹"
-| 'U' -> "🇺"
-| 'V' -> "🇻"
-| 'W' -> "🇼"
-| 'X' -> "🇽"
-| 'Y' -> "🇾"
-| 'Z' -> "🇿"
+| 'A' -> `Unicode_emoji "🇦"
+| 'B' -> `Unicode_emoji "🇧"
+| 'C' -> `Unicode_emoji "🇨"
+| 'D' -> `Unicode_emoji "🇩"
+| 'E' -> `Unicode_emoji "🇪"
+| 'F' -> `Unicode_emoji "🇫"
+| 'G' -> `Unicode_emoji "🇬"
+| 'H' -> `Unicode_emoji "🇭"
+| 'I' -> `Unicode_emoji "🇮"
+| 'J' -> `Unicode_emoji "🇯"
+| 'K' -> `Unicode_emoji "🇰"
+| 'L' -> `Unicode_emoji "🇱"
+| 'M' -> `Unicode_emoji "🇲"
+| 'N' -> `Unicode_emoji "🇳"
+| 'O' -> `Unicode_emoji "🇴"
+| 'P' -> `Unicode_emoji "🇵"
+| 'Q' -> `Unicode_emoji "🇶"
+| 'R' -> `Unicode_emoji "🇷"
+| 'S' -> `Unicode_emoji "🇸"
+| 'T' -> `Unicode_emoji "🇹"
+| 'U' -> `Unicode_emoji "🇺"
+| 'V' -> `Unicode_emoji "🇻"
+| 'W' -> `Unicode_emoji "🇼"
+| 'X' -> `Unicode_emoji "🇽"
+| 'Y' -> `Unicode_emoji "🇾"
+| 'Z' -> `Unicode_emoji "🇿"
 | c -> failwithf "Invalid option '%c'" c ()
 
 let parser =
@@ -103,25 +103,21 @@ let%expect_test "Poll Parser" =
 let on_message_create { token; _ } = function
 | Data.Message.{ id = message_id; type_ = DEFAULT; channel_id; content; _ }
  |Data.Message.{ id = message_id; type_ = REPLY; channel_id; content; _ } -> (
-  let channel_id = Basics.Snowflake.to_string channel_id in
   match parse content with
   | Some (Error msg) ->
-    Rest.Channel.create_message ~token ~channel_id ~content:(sprintf ":x: %s" msg) Ignore
+    let%lwt _message = Rest.Channel.create_message ~token ~channel_id ~content:(sprintf "❌ %s" msg) in
+    Lwt.return_unit
   | Some (Ok poll) ->
-    let message_id = Basics.Snowflake.to_string message_id in
     let%lwt () = Rest.Channel.delete_message ~token ~channel_id ~message_id in
     let buf = Buffer.create 64 in
     Buffer.add_string buf poll.question;
-    List.iter poll.options ~f:(fun { opt; text } -> bprintf buf "\n%s %s" (emoji_of_opt opt) text);
+    List.iter poll.options ~f:(fun { opt; text } ->
+        bprintf buf "\n%s %s" (emoji_of_opt opt |> Basics.Reference.to_string) text);
     let content = Buffer.contents buf in
-    let%lwt post =
-      Rest.Channel.create_message ~token ~channel_id ~content (Parse Data.Message.of_yojson)
-    in
+    let%lwt { id = message_id; _ } = Rest.Channel.create_message ~token ~channel_id ~content in
     Lwt_list.iter_s
       (fun { opt; _ } ->
-        Rest.Channel.create_reaction ~token ~channel_id
-          ~message_id:(Basics.Snowflake.to_string post.id)
-          ~emoji:(emoji_of_opt opt) Ignore)
+        Rest.Channel.create_reaction ~token ~channel_id ~message_id ~emoji:(emoji_of_opt opt))
       poll.options
   | None -> Lwt.return_unit
 )

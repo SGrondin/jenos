@@ -37,8 +37,8 @@ let can_send ~notifies =
 let post_message ~token ~channel_id ~content ~notifies =
   if can_send ~notifies
   then begin
-    let%lwt () = Rest.Channel.create_message ~token ~channel_id ~content Ignore in
-    Lwt_io.printlf "✅ Posted to <%s>" channel_id
+    let%lwt _message = Rest.Channel.create_message ~token ~channel_id ~content in
+    Lwt_io.printlf "✅ Posted to <%s>" (Basics.Snowflake.to_string channel_id)
   end
   else Lwt_io.printl "⏳ Waiting until we can send again"
 
@@ -73,10 +73,10 @@ let vc_member_change { token; text_channel = channel_id; line2; line4; threshold
     match after with
     | 2 ->
       let content = pick_line thresholds line2 in
-      post_message ~token ~channel_id:(Basics.Snowflake.to_string channel_id) ~content ~notifies:true
+      post_message ~token ~channel_id ~content ~notifies:true
     | 4 ->
       let content = pick_line thresholds line4 in
-      post_message ~token ~channel_id:(Basics.Snowflake.to_string channel_id) ~content ~notifies:false
+      post_message ~token ~channel_id ~content ~notifies:false
     | _ -> Lwt.return_unit
   end
   else Lwt.return_unit
