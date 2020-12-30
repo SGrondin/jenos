@@ -36,14 +36,14 @@ let () =
     Lwt_main.run
       (match Sys.get_argv () with
       | [| _; "--debug" |] ->
-        let open Discord.Data in
-        let _ss = Basics.Snowflake.to_string in
-        let sos = Basics.Snowflake.of_string in
-        let%lwt () =
-          Discord.Rest.Channel.bulk_delete_messages ~channel_id:(sos "780866001800527882")
-            ~token:"--secret--"
-            [ sos "792912845859061791"; sos "792912843476566036" ]
-        in
+        (* let open Discord.Data in
+           let _ss = Basics.Snowflake.to_string in
+           let sos = Basics.Snowflake.of_string in
+           let%lwt () =
+             Discord.Rest.Emoji.list_guild_emojis ~guild_id:(sos "780866001800527882")
+               ~token:"--secret--"
+               [ sos "792912845859061791"; sos "792912843476566036" ]
+           in *)
 
         (* let%lwt () = Lwt_io.printl ([%sexp_of: User.t] user |> Sexp.to_string_hum) in *)
         Lwt.return_unit
