@@ -13,6 +13,8 @@ let parser =
     let dot = option false (char '.' *> return true) in
     let time =
       both digits dot >>| function
+      | 0, dot -> sprintf "0:%d0am" (if dot then 3 else 0)
+      | 12, dot -> sprintf "12:%d0pm" (if dot then 3 else 0)
       | x, dot when x > 12 -> sprintf "%d:%d0pm" (x - 12) (if dot then 3 else 0)
       | x, dot -> sprintf "%d:%d0" x (if dot then 3 else 0)
     in
@@ -80,7 +82,7 @@ let parse raw =
 let%expect_test "D&D Poll Parser" =
   let test s = parse s |> [%sexp_of: parsed option] |> Sexp.to_string |> print_endline in
   test "Poll! 12,19,-,10";
-  [%expect {| (((text"A: Saturday 12:00\nB: Saturday 7:00pm\nC: Sunday 10:00")(opts(A B C)))) |}];
+  [%expect {| (((text"A: Saturday 12:00pm\nB: Saturday 7:00pm\nC: Sunday 10:00")(opts(A B C)))) |}];
   test "Poll! 7,19.,-,-";
   [%expect {| (((text"A: Saturday 7:00\nB: Saturday 7:30pm")(opts(A B)))) |}];
   test "Poll! 6/-,19,10.";
