@@ -35,26 +35,26 @@ let create_bot config =
       Lwt_io.printl (Rest.Gateway.sexp_of_t gateway |> Sexp.to_string) >>> state
     | Before_reconnecting -> Lwt_io.printl "🌐 Reconnecting..." >>> state
     (* READY *)
-    | Msg (Ready _) ->
+    | Received (Ready _) ->
       Lwt_io.printl "✅ READY!" >>> { vc_state = { vc_state with just_started = false } }
     (* RECONNECT *)
-    | Msg Reconnect -> Lwt_io.printl "⚠️ Received a Reconnect request." >>> state
+    | Received Reconnect -> Lwt_io.printl "⚠️ Received a Reconnect request." >>> state
     (* RESUMED *)
-    | Msg Resumed -> Lwt_io.printl "▶️ Resumed" >>> state
+    | Received Resumed -> Lwt_io.printl "▶️ Resumed" >>> state
     (* INVALID_SESSION *)
-    | Msg (Invalid_session { resumable }) ->
+    | Received (Invalid_session { resumable }) ->
       Lwt_io.printlf "⚠️ Session rejected (resumable: %b), starting a new session..." resumable
       >>> state
     (* VOICE_STATE_UPDATE *)
-    | Msg (Voice_state_update vsu) ->
+    | Received (Voice_state_update vsu) ->
       let%lwt tracker = Track_vc.on_voice_state_update config vc_state vsu in
       Lwt.return { vc_state = { vc_state with tracker } }
     (* GUILD_CREATE *)
-    | Msg (Guild_create gc) ->
+    | Received (Guild_create gc) ->
       let%lwt tracker = Track_vc.on_guild_create config vc_state gc in
       Lwt.return { vc_state = { vc_state with tracker } }
     (* MESSAGE_CREATE *)
-    | Msg (Message_create message) ->
+    | Received (Message_create message) ->
       in_background ~on_exn (fun () ->
           Lwt.join
             [
@@ -66,15 +66,16 @@ let create_bot config =
     (* | Payload ({ op = Dispatch; _ } as payload) -> *)
     (* Lwt_io.printl ([%sexp_of: Data.Payload.t] payload |> Sexp.to_string_hum) >>> state *)
     (* Re-test *)
-    | Msg (Invite_create x) ->
+    | Received (Invite_create x) ->
       Lwt_io.printlf "Invite_create!!! %s"
         ([%sexp_of: Data.Events.Invite_create.t] x |> Sexp.to_string_hum)
       >>> state
-    | Msg (Invite_delete x) ->
+    | Received (Invite_delete x) ->
       Lwt_io.printlf "Invite_delete!!! %s"
         ([%sexp_of: Data.Events.Invite_delete.t] x |> Sexp.to_string_hum)
       >>> state
     (* Testing *)
+    | Payload s -> Lwt_io.printl ([%sexp_of: Data.Payload.t] s |> Sexp.to_string_hum) >>> state
     (* Other events *)
     | _ -> Lwt.return state
   end) in
