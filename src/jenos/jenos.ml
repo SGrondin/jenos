@@ -66,14 +66,14 @@ let create_bot config =
     (* | Payload ({ op = Dispatch; _ } as payload) -> *)
     (* Lwt_io.printl ([%sexp_of: Data.Payload.t] payload |> Sexp.to_string_hum) >>> state *)
     (* Re-test *)
-    (* | Msg (Invite_create x) ->
-         Lwt_io.printlf "Invite_create!!! %s"
-           ([%sexp_of: Data.Events.Invite_create.t] x |> Sexp.to_string_hum)
-         >>> state
-       | Msg (Invite_delete x) ->
-         Lwt_io.printlf "Invite_delete!!! %s"
-           ([%sexp_of: Data.Events.Invite_delete.t] x |> Sexp.to_string_hum)
-         >>> state *)
+    | Msg (Invite_create x) ->
+      Lwt_io.printlf "Invite_create!!! %s"
+        ([%sexp_of: Data.Events.Invite_create.t] x |> Sexp.to_string_hum)
+      >>> state
+    | Msg (Invite_delete x) ->
+      Lwt_io.printlf "Invite_delete!!! %s"
+        ([%sexp_of: Data.Events.Invite_delete.t] x |> Sexp.to_string_hum)
+      >>> state
     (* Testing *)
     (* Other events *)
     | _ -> Lwt.return state
