@@ -75,7 +75,6 @@ let create_bot config =
         ([%sexp_of: Data.Events.Invite_delete.t] x |> Sexp.to_string_hum)
       >>> state
     (* Testing *)
-    | Payload s -> Lwt_io.printl ([%sexp_of: Data.Payload.t] s |> Sexp.to_string_hum) >>> state
     (* Other events *)
     | _ -> Lwt.return state
   end) in
