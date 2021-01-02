@@ -17,6 +17,14 @@ let () =
       (* MacOS *)
       new Lwt_engine.libev ~backend:Lwt_engine.Ev_backend.kqueue ())
 
+let shutdown = ref None
+
+let () =
+  let handler _ = Option.call () ~f:!shutdown in
+  let _sigint = Lwt_unix.on_signal Core.Signal.(to_caml_int int) handler in
+  let _sigterm = Lwt_unix.on_signal Core.Signal.(to_caml_int term) handler in
+  ()
+
 let get_print_config filename =
   let open Jenos__ in
   let%lwt config =
@@ -60,11 +68,15 @@ let () =
       | args ->
         let filename = if Array.length args >= 2 then args.(1) else default_filename in
         let%lwt ({ token; activity_type; activity_name; _ } as config) = get_print_config filename in
-        Discord.Login.(
-          create ~token
-            ~intents:[ GUILDS; GUILD_VOICE_STATES; GUILD_MESSAGES ]
-            ?activity_name ?activity_type ())
-        |> Jenos.create_bot config)
+        let login =
+          Discord.Login.(
+            create ~token
+              ~intents:[ GUILDS; GUILD_VOICE_STATES; GUILD_MESSAGES ]
+              ?activity_name ?activity_type ())
+        in
+        let p, stop = Jenos.create_bot config login in
+        shutdown := Some stop;
+        p)
   with
   | Exit -> print_endline "Exit"
   | Unix.Unix_error (e, c, s) ->

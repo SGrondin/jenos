@@ -11,7 +11,7 @@ RUN opam update \
 
 COPY . .
 
-RUN OPAMYES=1 opam pin add discord 'git+https://github.com/SGrondin/discord.git#40008ea'
+RUN OPAMYES=1 opam pin add discord 'git+https://github.com/SGrondin/discord.git#3424114'
 
 ENV DUNE_PROFILE release
 
