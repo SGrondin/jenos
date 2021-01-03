@@ -20,9 +20,16 @@ let () =
 let shutdown = ref None
 
 let () =
-  let handler _ = Option.call () ~f:!shutdown in
-  let _sigint = Lwt_unix.on_signal Core.Signal.(to_caml_int int) handler in
-  let _sigterm = Lwt_unix.on_signal Core.Signal.(to_caml_int term) handler in
+  let handler signal =
+    let caml = Signal.of_caml_int signal in
+    print_endline (sprintf "Received %s (%i)" (Signal.to_string caml) (Signal.to_system_int caml));
+    Option.call () ~f:!shutdown
+  in
+  let _sigint = Lwt_unix.on_signal Signal.(to_caml_int int) handler in
+  let _sigterm = Lwt_unix.on_signal Signal.(to_caml_int term) handler in
+  let _sigquit = Lwt_unix.on_signal Signal.(to_caml_int quit) handler in
+  let _sighup = Lwt_unix.on_signal Signal.(to_caml_int hup) handler in
+  let _sigabort = Lwt_unix.on_signal Signal.(to_caml_int abrt) handler in
   ()
 
 let get_print_config filename =
