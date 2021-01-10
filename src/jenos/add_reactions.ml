@@ -11,8 +11,6 @@ let on_message_create config = function
     |> List.concat_no_order
   in
   Lwt_list.iter_s
-    (fun emoji ->
-      Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id
-        ~emoji:(`Unicode_emoji emoji))
+    (fun emoji -> Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id ~emoji)
     emojis
 | _ -> Lwt.return_unit
