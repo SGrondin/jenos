@@ -6,9 +6,12 @@ let create_bot config =
   let module Bot = Bot.Make (struct
     open Bot
 
-    type state = { vc_state: Track_vc.state }
+    type state = {
+      vc_state: Track_vc.state;
+      remaining: int option;
+    }
 
-    let create () = { vc_state = Track_vc.initial_state }
+    let create () = { vc_state = Track_vc.initial_state; remaining = None }
 
     let ( >>> ) f x = Lwt.Infix.(f >|= fun () -> x)
 
@@ -19,7 +22,7 @@ let create_bot config =
     | Exception exn -> Lwt_io.printlf "⏹️ Closing connection (Exception %s)..." (Exn.to_string exn)
     | Reconnecting -> Lwt_io.printl "⏹️ Closing connection (Reconnecting)..."
 
-    let on_event ({ vc_state } as state) = function
+    let on_event ({ vc_state; _ } as state) = function
     | Error_connection_closed -> Lwt_io.printl "🔌 Connection was closed." >>> state
     | Error_connection_reset -> Lwt_io.printl "❗ Connection was reset." >>> state
     | Error_connection_timed_out -> Lwt_io.printl "⏱️ Connection timed out." >>> state
@@ -32,15 +35,17 @@ let create_bot config =
       Lwt_io.printlf "❌ Discontinuity error: ACK = %d but COUNT = %d. Closing the connection" ack count
       >>> state
     | Before_connecting gateway ->
-      Lwt_io.printl (Rest.Gateway.sexp_of_t gateway |> Sexp.to_string) >>> state
+      let remaining = gateway.session_start_limit.remaining in
+      Lwt.return { state with remaining = Some remaining }
     | Before_reconnecting -> Lwt_io.printl "🌐 Reconnecting..." >>> state
     (* READY *)
-    | Received (Ready _) ->
-      Lwt_io.printl "✅ READY!" >>> { vc_state = { vc_state with just_started = false } }
+    | Received (Ready _) -> Lwt_io.printl "✅ READY!" >>> state
     (* RECONNECT *)
     | Received Reconnect -> Lwt_io.printl "⚠️ Received a Reconnect request." >>> state
     (* RESUMED *)
-    | Received Resumed -> Lwt_io.printl "▶️ Resumed" >>> state
+    | Received Resumed ->
+      let remaining = Option.value_map state.remaining ~default:"?" ~f:Int.to_string in
+      Lwt_io.printlf "▶️ Resumed (%s)" remaining >>> state
     (* INVALID_SESSION *)
     | Received (Invalid_session { resumable }) ->
       Lwt_io.printlf "⚠️ Session rejected (resumable: %b), starting a new session..." resumable
@@ -48,11 +53,11 @@ let create_bot config =
     (* VOICE_STATE_UPDATE *)
     | Received (Voice_state_update vsu) ->
       let%lwt tracker = Track_vc.on_voice_state_update config vc_state vsu in
-      Lwt.return { vc_state = { vc_state with tracker } }
+      Lwt.return { state with vc_state = { vc_state with tracker } }
     (* GUILD_CREATE *)
     | Received (Guild_create gc) ->
       let%lwt tracker = Track_vc.on_guild_create config vc_state gc in
-      Lwt.return { vc_state = { vc_state with tracker } }
+      Lwt.return { state with vc_state = { vc_state with tracker } }
     (* MESSAGE_CREATE *)
     | Received (Message_create message) ->
       in_background ~on_exn (fun () ->

@@ -4,11 +4,11 @@ open Config
 module SnowflakeSet = Set.Make (Basics.Snowflake)
 
 type state = {
-  just_started: bool;
+  just_started: unit Lwt.t;
   tracker: SnowflakeSet.t;
 }
 
-let initial_state = { just_started = true; tracker = SnowflakeSet.empty }
+let initial_state = { just_started = Lwt_unix.sleep 10.; tracker = SnowflakeSet.empty }
 
 type vc_change =
   (* Voice State Update *)
@@ -68,7 +68,7 @@ let vc_member_change { token; text_channel = channel_id; line2; line4; threshold
   end;
   if after <> before then bprintf buf "Current count: %d" after;
   let%lwt () = if Buffer.length buf > 0 then Lwt_io.printl (Buffer.contents buf) else Lwt.return_unit in
-  if after > before && not just_started
+  if after > before && (not @@ Lwt.is_sleeping just_started)
   then begin
     match after with
     | 2 ->
