@@ -6,7 +6,7 @@ let on_message_create config = function
  |Data.Message.{ id = message_id; type_ = DEFAULT; channel_id; content; _ } ->
   let emojis =
     List.filter_map config.reactions ~f:(function
-      | { regex; emojis } when Regex.matching regex content -> Some emojis
+      | { matcher; emojis } when Regex.matching matcher content -> Some emojis
       | _ -> None)
     |> List.concat_no_order
   in

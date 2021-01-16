@@ -1,4 +1,4 @@
-FROM asemio/mountain-caravan:1.0.1 AS build
+FROM asemio/mountain-caravan:1.1.0 AS build
 WORKDIR /app
 RUN sudo apk update \
   && sudo apk add --no-cache perl cmake gmp-dev
@@ -11,7 +11,7 @@ RUN opam update \
 
 COPY . .
 
-RUN OPAMYES=1 opam pin add discord 'git+https://github.com/SGrondin/discord.git#20bb409'
+RUN OPAMYES=1 opam pin add discord 'git+https://github.com/SGrondin/discord.git#7398a57'
 
 ENV DUNE_PROFILE release
 
