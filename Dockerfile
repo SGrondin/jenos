@@ -9,9 +9,9 @@ RUN opam update \
   && OPAMYES=1 opam install . --deps-only \
   && OPAMYES=1 opam upgrade
 
-COPY . .
-
 RUN OPAMYES=1 opam pin add discord 'git+https://github.com/SGrondin/discord.git#7398a57'
+
+COPY . .
 
 ENV DUNE_PROFILE release
 
@@ -36,4 +36,4 @@ COPY --from=build /app/lib ./lib/
 ENV LD_LIBRARY_PATH ./lib
 RUN ./app.exe help
 
-ENTRYPOINT [ "/app/app.exe" ]
+ENTRYPOINT [ "/app/app.exe", "bot" ]
