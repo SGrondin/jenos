@@ -34,6 +34,6 @@ COPY --from=build /app/app.exe .
 COPY --from=build /app/config.json .
 COPY --from=build /app/lib ./lib/
 ENV LD_LIBRARY_PATH ./lib
-RUN ./app.exe -h
+RUN ./app.exe help
 
 ENTRYPOINT [ "/app/app.exe" ]
