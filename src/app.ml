@@ -45,40 +45,59 @@ let get_print_config filename =
   let%lwt () = Lwt_io.printl (Config.sexp_of_t config |> Sexp.to_string_hum) in
   Lwt.return config
 
-let () =
-  let default_filename = "config.json" in
-  try
-    Lwt_main.run
-      (match Sys.get_argv () with
-      | [| _; "--debug" |] ->
-        let open Discord.Data in
-        let _ss = Basics.Snowflake.to_string in
-        let _sos = Basics.Snowflake.of_string in
-        Lwt.return_unit
-      | [| _; "-h" |]
-       |[| _; "-help" |]
-       |[| _; "--help" |] ->
-        let%lwt _config = get_print_config default_filename in
-        Lwt.return_unit
-      | [| _; "-h"; filename |]
-       |[| _; "-help"; filename |]
-       |[| _; "--help"; filename |] ->
-        let%lwt _config = get_print_config filename in
-        Lwt.return_unit
-      | args ->
-        let filename = if Array.length args >= 2 then args.(1) else default_filename in
-        let%lwt ({ token; activity_type; activity_name; _ } as config) = get_print_config filename in
-        let login =
-          Discord.Login.(
-            create ~token
-              ~intents:[ GUILDS; GUILD_VOICE_STATES; GUILD_MESSAGES ]
-              ?activity_name ?activity_type ())
-        in
-        let p, stop = Jenos.create_bot config login in
-        shutdown := Some stop;
-        p)
-  with
+let run_app p () =
+  try Lwt_main.run (p ()) with
   | Exit -> print_endline "Exit"
   | Unix.Unix_error (e, c, s) ->
     print_endline (sprintf "%s. At: %s(%s)" (Unix.Error.message e) c s);
     exit 1
+
+let script =
+  let open Command in
+  let task () =
+    let open Discord.Data in
+    let _ss = Basics.Snowflake.to_string in
+    let _sos = Basics.Snowflake.of_string in
+    Lwt.return_unit
+  in
+  basic ~summary:"" (Param.return (run_app task))
+
+let filename_param =
+  let open Command.Param in
+  anon (maybe_with_default "config.json" ("filename" %: string))
+
+let debug =
+  let open Command in
+  let open Let_syntax in
+  let task filename () =
+    let%lwt _config = get_print_config filename in
+    Lwt.return_unit
+  in
+  let param =
+    let%map_open filename = filename_param in
+    run_app (task filename)
+  in
+  basic ~summary:"" param
+
+let bot =
+  let open Command in
+  let open Let_syntax in
+  let task filename () =
+    let%lwt ({ token; activity_type; activity_name; _ } as config) = get_print_config filename in
+    let login =
+      Discord.Login.(
+        create ~token
+          ~intents:[ GUILDS; GUILD_VOICE_STATES; GUILD_MESSAGES ]
+          ?activity_name ?activity_type ())
+    in
+    let p, stop = Jenos.create_bot config login in
+    shutdown := Some stop;
+    p
+  in
+  let param =
+    let%map_open filename = filename_param in
+    run_app (task filename)
+  in
+  basic ~summary:"" param
+
+let () = Command.run @@ Command.group ~summary:"" [ "script", script; "debug", debug; "bot", bot ]
