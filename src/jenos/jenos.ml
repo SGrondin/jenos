@@ -66,6 +66,7 @@ let create_bot config =
               Make_poll.on_message_create config message;
               Make_meeting_poll.on_message_create config message;
               Add_reactions.on_message_create config message;
+              Add_reactions_to_link.on_message_create config message;
             ]);
       Lwt.return state
     (* | Payload ({ op = Dispatch; _ } as payload) -> *)

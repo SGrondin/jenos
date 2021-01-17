@@ -13,33 +13,85 @@ type poll = {
 }
 [@@deriving sexp]
 
-let emoji_of_opt = function
-| 'A' -> `Unicode_emoji "🇦"
-| 'B' -> `Unicode_emoji "🇧"
-| 'C' -> `Unicode_emoji "🇨"
-| 'D' -> `Unicode_emoji "🇩"
-| 'E' -> `Unicode_emoji "🇪"
-| 'F' -> `Unicode_emoji "🇫"
-| 'G' -> `Unicode_emoji "🇬"
-| 'H' -> `Unicode_emoji "🇭"
-| 'I' -> `Unicode_emoji "🇮"
-| 'J' -> `Unicode_emoji "🇯"
-| 'K' -> `Unicode_emoji "🇰"
-| 'L' -> `Unicode_emoji "🇱"
-| 'M' -> `Unicode_emoji "🇲"
-| 'N' -> `Unicode_emoji "🇳"
-| 'O' -> `Unicode_emoji "🇴"
-| 'P' -> `Unicode_emoji "🇵"
-| 'Q' -> `Unicode_emoji "🇶"
-| 'R' -> `Unicode_emoji "🇷"
-| 'S' -> `Unicode_emoji "🇸"
-| 'T' -> `Unicode_emoji "🇹"
-| 'U' -> `Unicode_emoji "🇺"
-| 'V' -> `Unicode_emoji "🇻"
-| 'W' -> `Unicode_emoji "🇼"
-| 'X' -> `Unicode_emoji "🇽"
-| 'Y' -> `Unicode_emoji "🇾"
-| 'Z' -> `Unicode_emoji "🇿"
+let emoji_of_letter = function
+| 'A'
+ |'a' ->
+  `Unicode_emoji "🇦"
+| 'B'
+ |'b' ->
+  `Unicode_emoji "🇧"
+| 'C'
+ |'c' ->
+  `Unicode_emoji "🇨"
+| 'D'
+ |'d' ->
+  `Unicode_emoji "🇩"
+| 'E'
+ |'e' ->
+  `Unicode_emoji "🇪"
+| 'F'
+ |'f' ->
+  `Unicode_emoji "🇫"
+| 'G'
+ |'g' ->
+  `Unicode_emoji "🇬"
+| 'H'
+ |'h' ->
+  `Unicode_emoji "🇭"
+| 'I'
+ |'i' ->
+  `Unicode_emoji "🇮"
+| 'J'
+ |'j' ->
+  `Unicode_emoji "🇯"
+| 'K'
+ |'k' ->
+  `Unicode_emoji "🇰"
+| 'L'
+ |'l' ->
+  `Unicode_emoji "🇱"
+| 'M'
+ |'m' ->
+  `Unicode_emoji "🇲"
+| 'N'
+ |'n' ->
+  `Unicode_emoji "🇳"
+| 'O'
+ |'o' ->
+  `Unicode_emoji "🇴"
+| 'P'
+ |'p' ->
+  `Unicode_emoji "🇵"
+| 'Q'
+ |'q' ->
+  `Unicode_emoji "🇶"
+| 'R'
+ |'r' ->
+  `Unicode_emoji "🇷"
+| 'S'
+ |'s' ->
+  `Unicode_emoji "🇸"
+| 'T'
+ |'t' ->
+  `Unicode_emoji "🇹"
+| 'U'
+ |'u' ->
+  `Unicode_emoji "🇺"
+| 'V'
+ |'v' ->
+  `Unicode_emoji "🇻"
+| 'W'
+ |'w' ->
+  `Unicode_emoji "🇼"
+| 'X'
+ |'x' ->
+  `Unicode_emoji "🇽"
+| 'Y'
+ |'y' ->
+  `Unicode_emoji "🇾"
+| 'Z'
+ |'z' ->
+  `Unicode_emoji "🇿"
 | c -> failwithf "Invalid option '%c'" c ()
 
 let parser =
@@ -112,12 +164,12 @@ let on_message_create { token; _ } = function
     let buf = Buffer.create 64 in
     Buffer.add_string buf poll.question;
     List.iter poll.options ~f:(fun { opt; text } ->
-        bprintf buf "\n%s %s" (emoji_of_opt opt |> Basics.Reference.to_string) text);
+        bprintf buf "\n%s %s" (emoji_of_letter opt |> Basics.Reference.to_string) text);
     let content = Buffer.contents buf in
     let%lwt { id = message_id; _ } = Rest.Channel.create_message ~token ~channel_id ~content in
     Lwt_list.iter_s
       (fun { opt; _ } ->
-        Rest.Channel.create_reaction ~token ~channel_id ~message_id ~emoji:(emoji_of_opt opt))
+        Rest.Channel.create_reaction ~token ~channel_id ~message_id ~emoji:(emoji_of_letter opt))
       poll.options
   | None -> Lwt.return_unit
 )
