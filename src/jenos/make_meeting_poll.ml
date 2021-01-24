@@ -97,19 +97,17 @@ let%expect_test "D&D Poll Parser" =
   [%expect
     {| (((text"A: Friday 10:30\nB: Friday 7:30pm\nC: Saturday 1:00pm\nD: Sunday 2:30pm\nE: Monday 3:00pm")(opts(A B C D E)))) |}]
 
-let on_message_create config = function
+let on_message_create { token; make_meeting_poll = { poll_user_id }; _ } = function
 | Data.Message.{ id = _; type_ = DEFAULT; channel_id; content; author; _ }
  |Data.Message.{ id = _; type_ = REPLY; channel_id; content; author; _ }
-  when Basics.Snowflake.equal author.id config.poll_user_id -> (
+  when Basics.Snowflake.equal author.id poll_user_id -> (
   match parse content with
   | Some { text; opts } ->
-    let%lwt { id = message_id; _ } =
-      Rest.Channel.create_message ~token:config.token ~channel_id ~content:text ()
-    in
+    let%lwt { id = message_id; _ } = Rest.Channel.create_message ~token ~channel_id ~content:text () in
     Lwt_list.iter_s
       (fun opt ->
         let emoji = emoji_of_opt opt in
-        Rest.Channel.create_reaction ~token:config.token ~channel_id ~message_id ~emoji)
+        Rest.Channel.create_reaction ~token ~channel_id ~message_id ~emoji)
       opts
   | None -> Lwt.return_unit
 )

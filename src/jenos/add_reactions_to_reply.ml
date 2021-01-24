@@ -3,7 +3,7 @@ open Config
 
 let regex = Regex.create {|^!([a-z]+$)|}
 
-let on_message_create config = function
+let on_message_create { token; _ } = function
 | Data.Message.{ type_ = REPLY; content; referenced_message = Some { id = message_id; channel_id; _ }; _ }
   -> (
   match Regex.exec regex content with
@@ -11,7 +11,7 @@ let on_message_create config = function
     String.to_list word
     |> List.stable_dedup
     |> List.map ~f:Make_poll.emoji_of_letter
-    |> Add_reactions.add_emojis ~token:config.token ~channel_id ~message_id
+    |> Add_reactions.add_emojis ~token ~channel_id ~message_id
   | Some _
    |None ->
     Lwt.return_unit

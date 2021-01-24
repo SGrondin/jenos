@@ -1,6 +1,7 @@
 open! Core_kernel
 open Discord
 open Config
+open Config.Track_vc_config
 module SnowflakeSet = Set.Make (Basics.Snowflake)
 
 type state = {
@@ -42,7 +43,7 @@ let post_message ~token ~channel_id ~content ~notifies =
   end
   else Lwt_io.printl "⏳ Waiting until we can send again"
 
-let pick_line Lines.{ thresholds = { p_common; p_uncommon }; common; uncommon; rare } =
+let pick_line { thresholds = { p_common; p_uncommon }; common; uncommon; rare } =
   begin
     match Random.int_incl 1 100 with
     | r when r <= p_common -> common
@@ -51,7 +52,7 @@ let pick_line Lines.{ thresholds = { p_common; p_uncommon }; common; uncommon; r
   end
   |> Array.random_element_exn
 
-let vc_member_change { token; text_channel = channel_id; lines2; lines4; _ } ~just_started ~before ~after
+let vc_member_change ~token { text_channel = channel_id; lines2; lines4; _ } ~just_started ~before ~after
    change =
   let nick_opt opt = Option.bind opt ~f:Data.User.Util.member_name |> Option.value ~default:"❓" in
   let nick member = Data.User.Util.member_name member |> Option.value ~default:"❓" in
@@ -81,22 +82,22 @@ let vc_member_change { token; text_channel = channel_id; lines2; lines4; _ } ~ju
   end
   else Lwt.return_unit
 
-let on_voice_state_update config { tracker; just_started } (vsu : Data.Voice_state.t) =
+let on_voice_state_update { token; track_vc; _ } { tracker; just_started } (vsu : Data.Voice_state.t) =
   let before = SnowflakeSet.length tracker in
   let tracker, member =
     match vsu with
     (* Target channel, not a bot *)
     | { channel_id = Some channel_id; user_id; member; _ }
-      when Data.User.Util.is_bot member |> not && Basics.Snowflake.equal channel_id config.vc_channel ->
+      when Data.User.Util.is_bot member |> not && Basics.Snowflake.equal channel_id track_vc.vc_channel ->
       SnowflakeSet.add tracker user_id, member
     (* Anything else *)
     | { user_id; member; _ } -> SnowflakeSet.remove tracker user_id, member
   in
   let after = SnowflakeSet.length tracker in
-  let%lwt () = vc_member_change config ~just_started ~before ~after (VSU member) in
+  let%lwt () = vc_member_change ~token track_vc ~just_started ~before ~after (VSU member) in
   Lwt.return tracker
 
-let on_guild_create config { tracker; just_started } (gc : Data.Guild.t) =
+let on_guild_create { token; track_vc; _ } { tracker; just_started } (gc : Data.Guild.t) =
   let before = SnowflakeSet.length tracker in
   let users_in_target_channel =
     match gc with
@@ -104,7 +105,7 @@ let on_guild_create config { tracker; just_started } (gc : Data.Guild.t) =
     | { voice_states = Some ll; _ } ->
       List.fold ll ~init:SnowflakeSet.empty ~f:(fun acc -> function
         | { channel_id = Some channel_id; user_id; _ }
-          when Basics.Snowflake.equal channel_id config.vc_channel ->
+          when Basics.Snowflake.equal channel_id track_vc.vc_channel ->
           SnowflakeSet.add acc user_id
         | _ -> acc)
   in
@@ -118,5 +119,5 @@ let on_guild_create config { tracker; just_started } (gc : Data.Guild.t) =
         | _ -> acc)
   in
   let after = SnowflakeSet.length tracker in
-  let%lwt () = vc_member_change config ~just_started ~before ~after (GC members) in
+  let%lwt () = vc_member_change ~token track_vc ~just_started ~before ~after (GC members) in
   Lwt.return tracker

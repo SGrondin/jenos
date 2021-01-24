@@ -13,7 +13,11 @@ let create_bot config =
     }
 
     let create () =
-      { vc_state = Track_vc.initial_state; curses_state = Send_curses.initial_state (); remaining = None }
+      {
+        vc_state = Track_vc.initial_state;
+        curses_state = Send_curses.initial_state Config.(config.send_curses);
+        remaining = None;
+      }
 
     let ( >>> ) f x = Lwt.Infix.(f >|= fun () -> x)
 
@@ -68,7 +72,7 @@ let create_bot config =
               Make_poll.on_message_create config message;
               Make_meeting_poll.on_message_create config message;
               Add_reactions.on_message_create config message;
-              Add_reactions_to_link.on_message_create config message;
+              Add_reactions_to_reply.on_message_create config message;
             ]);
       let%lwt curses_state =
         Send_curses.on_message_create ~in_background:(in_background ~on_exn) config state.curses_state

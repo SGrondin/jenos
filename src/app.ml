@@ -1,6 +1,6 @@
 open! Core
 
-let () = Random.self_init ()
+let () = Random.State.make_self_init () |> Random.set_state
 
 let () =
   Lwt.async_exception_hook :=
