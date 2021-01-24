@@ -62,8 +62,7 @@ let fetch ~now subreddit =
     >>= [%of_yojson: Reddit.Listing.t]
     >>| fun listing ->
     List.fold listing.posts ~init:String.Map.empty ~f:(fun acc -> function
-      | { post_hint = Image; is_meta = false; is_video = false; is_self = false; id; title; url; awards }
-        ->
+      | { is_meta = false; is_video = false; is_self = false; id; title; url; awards } ->
         String.Map.set acc ~key:id ~data:(now, { title; url; awards })
       | _ -> acc)
   | status ->

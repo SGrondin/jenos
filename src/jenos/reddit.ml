@@ -11,20 +11,6 @@ module Entity = struct
 end
 
 module Post = struct
-  module Type = struct
-    type t =
-      | Image
-      | Video
-      | Other of string
-    [@@deriving sexp]
-
-    let of_yojson = function
-    | `String "image" -> Ok Image
-    | `String "hosted:video" -> Ok Video
-    | `String s -> Ok (Other s)
-    | j -> Error (sprintf !"Invalid JSON for post type: %{Yojson.Safe}" j)
-  end
-
   module Award = struct
     type t = {
       name: string;
@@ -36,7 +22,6 @@ module Post = struct
   type t = {
     id: string;
     title: string;
-    post_hint: Type.t;
     is_meta: bool;
     is_video: bool;
     is_self: bool;
@@ -74,122 +59,119 @@ let%expect_test "Reddit parsing" =
     {|
     ((count 25)
      (posts
-      (((id l38hgj) (title "A long time indeed...") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+      (((id l38hgj) (title "A long time indeed...") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/t15aei0cm1d61.jpg)
         (awards
          (((name Helpful) (count 21)) ((name Wholesome) (count 49))
           ((name Silver) (count 23)) ((name Hugz) (count 44)))))
-       ((id l2yn6w) (title "wholesale car owners") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l2yn6w) (title "wholesale car owners") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/6kzs6zoxlyc61.jpg)
         (awards
          (((name Uplifting) (count 1)) ((name Helpful) (count 13))
           ((name Wholesome) (count 49)) ((name Silver) (count 11))
           ((name Hugz) (count 42)))))
        ((id l38kd4) (title "The Wolverine, ladies and gentlemen.")
-        (post_hint Video) (is_meta false) (is_video true) (is_self false)
+        (is_meta false) (is_video true) (is_self false)
         (url https://v.redd.it/3gzib481o1d61)
         (awards
          (((name Starstruck) (count 1)) ((name "Wholesome (Pro)") (count 1))
           ((name Helpful) (count 34)) ((name Wholesome) (count 44))
           ((name Silver) (count 24)) ((name Hugz) (count 34)))))
-       ((id l2sb9j) (title "How adorable") (post_hint Image) (is_meta false)
-        (is_video false) (is_self false)
-        (url https://i.redd.it/571219mv3xc61.jpg)
+       ((id l2sb9j) (title "How adorable") (is_meta false) (is_video false)
+        (is_self false) (url https://i.redd.it/571219mv3xc61.jpg)
         (awards
          (((name Helpful) (count 8)) ((name Wholesome) (count 11))
           ((name Silver) (count 6)) ((name Hugz) (count 10)))))
        ((id l38sug) (title "They have a special fitting in everyone..")
-        (post_hint Image) (is_meta false) (is_video false) (is_self false)
+        (is_meta false) (is_video false) (is_self false)
         (url https://i.redd.it/hcthx7ppr1d61.jpg)
         (awards
          (((name LOVE!) (count 1)) ((name Helpful) (count 8))
           ((name Wholesome) (count 15)) ((name Silver) (count 9))
           ((name Hugz) (count 12)))))
-       ((id l2xvf9) (title "Perfect date") (post_hint Image) (is_meta false)
-        (is_video false) (is_self false)
-        (url https://i.redd.it/qvaih896fyc61.jpg)
+       ((id l2xvf9) (title "Perfect date") (is_meta false) (is_video false)
+        (is_self false) (url https://i.redd.it/qvaih896fyc61.jpg)
         (awards
          (((name Helpful) (count 1)) ((name Wholesome) (count 9))
           ((name Silver) (count 8)) ((name Hugz) (count 7)))))
        ((id l2ttc5)
         (title "Some goals in life you wanna achieve, goals like this.")
-        (post_hint Image) (is_meta false) (is_video false) (is_self false)
+        (is_meta false) (is_video false) (is_self false)
         (url https://i.redd.it/s439mvnbgxc61.jpg)
         (awards
          (((name Helpful) (count 6)) ((name Wholesome) (count 17))
           ((name Silver) (count 5)) ((name Hugz) (count 7)))))
-       ((id l343oh) (title "Gotta protect the pack") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l343oh) (title "Gotta protect the pack") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/jm3czdkl30d61.jpg)
         (awards
          (((name Helpful) (count 2)) ((name Wholesome) (count 17))
           ((name Silver) (count 4)) ((name Hugz) (count 6)))))
-       ((id l2vgau) (title "Keep moving everyone") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l2vgau) (title "Keep moving everyone") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/1qk25306uxc61.jpg)
         (awards
          (((name Helpful) (count 8)) ((name Wholesome) (count 7))
           ((name Silver) (count 1)) ((name Hugz) (count 6)))))
-       ((id l39pe4) (title "Looking forward to the last one") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l39pe4) (title "Looking forward to the last one") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/4rponk7p52d61.jpg)
         (awards
          (((name Helpful) (count 3)) ((name Wholesome) (count 10))
           ((name Silver) (count 1)) ((name Hugz) (count 3)))))
-       ((id l36noj) (title "I love my niche communities.") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l36noj) (title "I love my niche communities.") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/w1edzoi9x0d61.gif)
         (awards
          (((name Helpful) (count 2)) ((name Wholesome) (count 6))
           ((name Silver) (count 1)) ((name Hugz) (count 3)))))
-       ((id l33lhv) (title "Nonnas cook the best") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l33lhv) (title "Nonnas cook the best") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/ahocoqk6yzc61.jpg)
         (awards
          (((name Helpful) (count 1)) ((name Wholesome) (count 4))
           ((name Hugz) (count 2)))))
-       ((id l38mny) (title "The importance of smaller steps") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l38mny) (title "The importance of smaller steps") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/bkn4orm3p1d61.jpg)
         (awards
          (((name Helpful) (count 3)) ((name Wholesome) (count 2))
           ((name Hugz) (count 3)))))
-       ((id l3ck2g) (title "Grandma always feeds us well") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l3ck2g) (title "Grandma always feeds us well") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/ppwdwtey83d61.jpg)
         (awards
          (((name Gold) (count 1)) ((name Wholesome) (count 4))
           ((name Silver) (count 1)) ((name Hugz) (count 3)))))
-       ((id l2vhg5) (title "In an alternate universe") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l2vhg5) (title "In an alternate universe") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/kpaxl9vusxc61.png)
         (awards
          (((name Wholesome) (count 1)) ((name Silver) (count 4))
           ((name Hugz) (count 1)))))
-       ((id l3cxa7) (title "Girl's dad meets her boyfriend") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l3cxa7) (title "Girl's dad meets her boyfriend") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/y2pxrfj0d3d61.jpg)
         (awards (((name Wholesome) (count 5)) ((name Silver) (count 2)))))
-       ((id l2tyq8) (title "Wholesome Tinder") (post_hint Image) (is_meta false)
-        (is_video false) (is_self false)
-        (url https://i.redd.it/jr7rn7nkhxc61.jpg)
+       ((id l2tyq8) (title "Wholesome Tinder") (is_meta false) (is_video false)
+        (is_self false) (url https://i.redd.it/jr7rn7nkhxc61.jpg)
         (awards
          (((name Helpful) (count 1)) ((name Wholesome) (count 3))
           ((name Hugz) (count 1)))))
-       ((id l37mdy) (title "The real proud parents..") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l37mdy) (title "The real proud parents..") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/chugk7r8a1d61.jpg)
         (awards (((name Wholesome) (count 1)) ((name Hugz) (count 1)))))
-       ((id l2x9fg) (title "Increase self esteem pls") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l2x9fg) (title "Increase self esteem pls") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/zwq0ztgx9yc61.jpg)
         (awards (((name Wholesome) (count 1)) ((name Hugz) (count 1)))))
        ((id l2xfmh)
         (title
          "To the parents who don\226\128\153t care but show interest anyway...")
-        (post_hint Image) (is_meta false) (is_video false) (is_self false)
+        (is_meta false) (is_video false) (is_self false)
         (url https://i.redd.it/8xybv6zcbyc61.jpg)
         (awards
          (((name Helpful) (count 1)) ((name Wholesome) (count 2))
@@ -197,25 +179,25 @@ let%expect_test "Reddit parsing" =
        ((id l36bsh)
         (title
          "Wholesome Bernie Sanders Doll by TobeyTimeCrochet on Etsy - Meme by yours truly")
-        (post_hint Image) (is_meta false) (is_video false) (is_self false)
+        (is_meta false) (is_video false) (is_self false)
         (url https://i.redd.it/w4ak9f0ys0d61.jpg)
         (awards
          (((name Uplifting) (count 1)) ((name Wholesome) (count 3))
           ((name Hugz) (count 4)))))
-       ((id l3ch1e) (title "Not OC but funny anyway") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l3ch1e) (title "Not OC but funny anyway") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/m1ian50z73d61.jpg)
         (awards (((name Hugz) (count 1)))))
-       ((id l32ess) (title "When dad approves mom's new scooter")
-        (post_hint Image) (is_meta false) (is_video false) (is_self false)
+       ((id l32ess) (title "When dad approves mom's new scooter") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/jswnficplzc61.jpg)
         (awards (((name Wholesome) (count 1)) ((name Silver) (count 1)))))
-       ((id l305ps) (title "I love it it is so delicious") (post_hint Image)
-        (is_meta false) (is_video false) (is_self false)
+       ((id l305ps) (title "I love it it is so delicious") (is_meta false)
+        (is_video false) (is_self false)
         (url https://i.redd.it/9x19s77jzyc61.jpg)
         (awards (((name Wholesome) (count 3)))))
        ((id l2yvel) (title "Keepin\226\128\153 those relationships true")
-        (post_hint Image) (is_meta false) (is_video false) (is_self false)
+        (is_meta false) (is_video false) (is_self false)
         (url https://i.redd.it/5mx3z2lznyc61.jpg)
         (awards
          (((name Silver) (count 1)) ((name Hugz) (count 1))
