@@ -157,7 +157,9 @@ let on_message_create { token; _ } = function
  |Data.Message.{ id = message_id; type_ = REPLY; channel_id; content; _ } -> (
   match parse content with
   | Some (Error msg) ->
-    let%lwt _message = Rest.Channel.create_message ~token ~channel_id ~content:(sprintf "❌ %s" msg) in
+    let%lwt _message =
+      Rest.Channel.create_message ~token ~channel_id ~content:(sprintf "❌ %s" msg) ()
+    in
     Lwt.return_unit
   | Some (Ok poll) ->
     let%lwt () = Rest.Channel.delete_message ~token ~channel_id ~message_id in
@@ -166,7 +168,7 @@ let on_message_create { token; _ } = function
     List.iter poll.options ~f:(fun { opt; text } ->
         bprintf buf "\n%s %s" (emoji_of_letter opt |> Basics.Reference.to_string) text);
     let content = Buffer.contents buf in
-    let%lwt { id = message_id; _ } = Rest.Channel.create_message ~token ~channel_id ~content in
+    let%lwt { id = message_id; _ } = Rest.Channel.create_message ~token ~channel_id ~content () in
     Lwt_list.iter_s
       (fun { opt; _ } ->
         Rest.Channel.create_reaction ~token ~channel_id ~message_id ~emoji:(emoji_of_letter opt))

@@ -37,22 +37,22 @@ let can_send ~notifies =
 let post_message ~token ~channel_id ~content ~notifies =
   if can_send ~notifies
   then begin
-    let%lwt _message = Rest.Channel.create_message ~token ~channel_id ~content in
+    let%lwt _message = Rest.Channel.create_message ~token ~channel_id ~content () in
     Lwt_io.printlf "✅ Posted to <%s>" (Basics.Snowflake.to_string channel_id)
   end
   else Lwt_io.printl "⏳ Waiting until we can send again"
 
-let pick_line { p_common; p_uncommon } lines =
+let pick_line Lines.{ thresholds = { p_common; p_uncommon }; common; uncommon; rare } =
   begin
     match Random.int_incl 1 100 with
-    | r when r <= p_common -> lines.common
-    | r when r <= p_uncommon -> lines.uncommon
-    | _ -> lines.rare
+    | r when r <= p_common -> common
+    | r when r <= p_uncommon -> uncommon
+    | _ -> rare
   end
   |> Array.random_element_exn
 
-let vc_member_change { token; text_channel = channel_id; line2; line4; thresholds; _ } ~just_started
-   ~before ~after change =
+let vc_member_change { token; text_channel = channel_id; lines2; lines4; _ } ~just_started ~before ~after
+   change =
   let nick_opt opt = Option.bind opt ~f:Data.User.Util.member_name |> Option.value ~default:"❓" in
   let nick member = Data.User.Util.member_name member |> Option.value ~default:"❓" in
   let buf = Buffer.create 64 in
@@ -72,10 +72,10 @@ let vc_member_change { token; text_channel = channel_id; line2; line4; threshold
   then begin
     match after with
     | 2 ->
-      let content = pick_line thresholds line2 in
+      let content = pick_line lines2 in
       post_message ~token ~channel_id ~content ~notifies:true
     | 4 ->
-      let content = pick_line thresholds line4 in
+      let content = pick_line lines4 in
       post_message ~token ~channel_id ~content ~notifies:false
     | _ -> Lwt.return_unit
   end

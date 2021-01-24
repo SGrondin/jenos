@@ -1,5 +1,7 @@
 open! Core
 
+let () = Random.self_init ()
+
 let () =
   Lwt.async_exception_hook :=
     fun ex ->
@@ -29,10 +31,11 @@ let () =
   let _sigterm = Lwt_unix.on_signal Signal.(to_caml_int term) handler in
   let _sigquit = Lwt_unix.on_signal Signal.(to_caml_int quit) handler in
   let _sighup = Lwt_unix.on_signal Signal.(to_caml_int hup) handler in
+
   let _sigabort = Lwt_unix.on_signal Signal.(to_caml_int abrt) handler in
   ()
 
-let get_print_config filename =
+let get_config ?(print = true) filename =
   let open Jenos__ in
   let%lwt config =
     Lwt_io.with_file
@@ -40,9 +43,11 @@ let get_print_config filename =
       ~mode:Input filename
       (fun ic ->
         let%lwt str = Lwt_io.read ic in
-        Yojson.Safe.from_string str |> Config.of_yojson |> Result.ok_or_failwith |> Lwt.return)
+        Yojson.Safe.from_string str |> [%of_yojson: Config.t] |> Result.ok_or_failwith |> Lwt.return)
   in
-  let%lwt () = Lwt_io.printl (Config.sexp_of_t config |> Sexp.to_string_hum) in
+  let%lwt () =
+    if print then Lwt_io.printl ([%sexp_of: Config.t] config |> Sexp.to_string_hum) else Lwt.return_unit
+  in
   Lwt.return config
 
 let run_app p () =
@@ -54,12 +59,7 @@ let run_app p () =
 
 let script =
   let open Command in
-  let task () =
-    let open Discord.Data in
-    let _ss = Basics.Snowflake.to_string in
-    let _sos = Basics.Snowflake.of_string in
-    Lwt.return_unit
-  in
+  let task () = Lwt.return_unit in
   basic ~summary:"" (Param.return (run_app task))
 
 let filename_param =
@@ -70,7 +70,7 @@ let debug =
   let open Command in
   let open Let_syntax in
   let task filename () =
-    let%lwt _config = get_print_config filename in
+    let%lwt _config = get_config filename in
     Lwt.return_unit
   in
   let param =
@@ -83,7 +83,7 @@ let bot =
   let open Command in
   let open Let_syntax in
   let task filename () =
-    let%lwt ({ token; activity_type; activity_name; _ } as config) = get_print_config filename in
+    let%lwt ({ token; activity_type; activity_name; _ } as config) = get_config filename in
     let login =
       Discord.Login.(
         create ~token

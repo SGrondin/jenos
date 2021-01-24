@@ -104,7 +104,7 @@ let on_message_create config = function
   match parse content with
   | Some { text; opts } ->
     let%lwt { id = message_id; _ } =
-      Rest.Channel.create_message ~token:config.token ~channel_id ~content:text
+      Rest.Channel.create_message ~token:config.token ~channel_id ~content:text ()
     in
     Lwt_list.iter_s
       (fun opt ->

@@ -8,10 +8,12 @@ let create_bot config =
 
     type state = {
       vc_state: Track_vc.state;
+      curses_state: Send_curses.state;
       remaining: int option;
     }
 
-    let create () = { vc_state = Track_vc.initial_state; remaining = None }
+    let create () =
+      { vc_state = Track_vc.initial_state; curses_state = Send_curses.initial_state (); remaining = None }
 
     let ( >>> ) f x = Lwt.Infix.(f >|= fun () -> x)
 
@@ -68,7 +70,11 @@ let create_bot config =
               Add_reactions.on_message_create config message;
               Add_reactions_to_link.on_message_create config message;
             ]);
-      Lwt.return state
+      let%lwt curses_state =
+        Send_curses.on_message_create ~in_background:(in_background ~on_exn) config state.curses_state
+          message
+      in
+      Lwt.return { state with curses_state }
     (* | Payload ({ op = Dispatch; _ } as payload) -> *)
     (* Lwt_io.printl ([%sexp_of: Data.Payload.t] payload |> Sexp.to_string_hum) >>> state *)
     (* Re-test *)
