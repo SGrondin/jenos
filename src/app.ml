@@ -59,7 +59,11 @@ let run_app p () =
 
 let script =
   let open Command in
-  let task () = Lwt.return_unit in
+  let task () =
+    let open Jenos__.Config in
+    let%lwt { token = _; _ } = get_config ~print:false "config.json" in
+    Lwt.return_unit
+  in
   basic ~summary:"" (Param.return (run_app task))
 
 let filename_param =

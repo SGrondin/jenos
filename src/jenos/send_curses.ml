@@ -5,6 +5,7 @@ open Config
 open Config.Send_curses_config
 open Lwt.Syntax
 open Result.Monad_infix
+open Discord
 
 let reddit_latch = Latch.create ~cooldown:(Latch.Time.sec 1L)
 
@@ -16,7 +17,7 @@ let expire = Latch.Time.min 30L
 
 type curse = {
   title: string;
-  url: Discord.Data.Basics.Url.t;
+  url: Data.Basics.Url.t;
   awards: Reddit.Post.Award.t list;
 }
 [@@deriving sexp]
@@ -62,7 +63,20 @@ let fetch ~now subreddit =
     >>= [%of_yojson: Reddit.Listing.t]
     >>| fun listing ->
     List.fold listing.posts ~init:String.Map.empty ~f:(fun acc -> function
-      | { is_meta = false; is_video = false; is_self = false; id; title; url; awards } ->
+      | { link_flair_text = Some "VIDEO"; _ } -> acc
+      | {
+          is_meta = false;
+          is_video = false;
+          is_self = false;
+          is_reddit_media_domain = true;
+          link_flair_text = _;
+          post_hint;
+          id;
+          title;
+          url;
+          awards;
+        }
+        when Option.value_map post_hint ~default:true ~f:(Reddit.Post.Type.equal Image) ->
         String.Map.set acc ~key:id ~data:(now, { title; url; awards })
       | _ -> acc)
   | status ->
@@ -128,7 +142,7 @@ let send_curse ~token ~in_background ~channel_id ~now send_curses state =
     in_background (fun () ->
         let* () = Latch.wait_and_trigger delay_latch in
         let* _msg = Rest.Channel.create_message ~token ~channel_id ~content () in
-        let* () = Lwt_unix.sleep 1.0 in
+        let* () = Lwt_unix.sleep 1.8 in
         let+ _msg =
           Rest.Channel.create_message ~token ~channel_id
             ~content:(Array.random_element_exn send_curses.phrases)
@@ -137,14 +151,30 @@ let send_curse ~token ~in_background ~channel_id ~now send_curses state =
         ());
     state
 
+let regex_too_much = Regex.create "^[^a-z]*too much[^a-z]*$"
+
 let on_message_create ~in_background { token; send_curses; _ } state = function
 | Data.Message.{ type_ = DEFAULT; channel_id; content; _ }
-  when Discord.Data.Basics.Snowflake.equal channel_id send_curses.cursed_channel
+  when Data.Basics.Snowflake.equal channel_id send_curses.cursed_channel
        && Regex.matching state.regex content ->
   let now = Latch.Time.get () in
   Latch.trigger ~now delay_latch;
   let* _ind = Rest.Channel.trigger_typing_indicator ~token ~channel_id in
   send_curse ~token ~in_background ~channel_id ~now send_curses state
+| Data.Message.
+    {
+      type_ = REPLY;
+      channel_id;
+      content;
+      referenced_message =
+        Some ({ id = message_id; author = { username = "Jenos Jr"; bot = Some true; _ }; _ } as original);
+      _;
+    }
+  when Data.Basics.Snowflake.equal channel_id send_curses.cursed_channel
+       && Regex.matching regex_too_much content ->
+  let* () = Rest.Channel.delete_message ~token ~channel_id ~message_id in
+  let+ () = Lwt_io.printlf !"Removed this: %{sexp#mach: Data.Message.t}" original in
+  state
 | _ -> Lwt.return state
 
 let%expect_test "Test curse capture" =
