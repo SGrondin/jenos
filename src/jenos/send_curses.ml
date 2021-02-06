@@ -19,10 +19,12 @@ type curse = {
   title: string;
   url: Data.Basics.Url.t;
   awards: Reddit.Post.Award.t list;
+  fetched_at: int64;
+  score: int;
 }
 [@@deriving sexp]
 
-type posts = (int64 * curse) String.Map.t [@@deriving sexp]
+type posts = curse String.Map.t [@@deriving sexp]
 
 type state = {
   queue: posts;
@@ -71,20 +73,21 @@ let fetch ~now subreddit =
           is_reddit_media_domain = true;
           link_flair_text = _;
           post_hint;
+          score;
           id;
           title;
           url;
           awards;
         }
-        when Option.value_map post_hint ~default:true ~f:(Reddit.Post.Type.equal Image) ->
-        String.Map.set acc ~key:id ~data:(now, { title; url; awards })
+        when Option.value_map post_hint ~default:true ~f:(Reddit.Post.Type.equal Image) && score >= 100 ->
+        String.Map.set acc ~key:id ~data:{ title; url; awards; fetched_at = now; score }
       | _ -> acc)
   | status ->
     Lwt_result.fail (sprintf !"Couldn't fetch %{Uri}, received: %{Code.string_of_status}" uri status)
 
 let get_curse ~now { subreddits; phrase_empty; _ } ({ queue; used; _ } as state) =
   let cutoff = Int64.(now - expire) in
-  let queue = String.Map.filter queue ~f:Int64.((fun (i64, _curse) -> i64 >= cutoff)) in
+  let queue = String.Map.filter queue ~f:Int64.((fun curse -> curse.fetched_at >= cutoff)) in
   let+ res =
     match String.Map.is_empty queue with
     | true -> (
@@ -103,7 +106,7 @@ let get_curse ~now { subreddits; phrase_empty; _ } ({ queue; used; _ } as state)
   in
   res >>= fun queue ->
   match String.Map.min_elt queue with
-  | Some (id, (_i64, curse)) ->
+  | Some (id, curse) ->
     Ok (curse, { state with queue = String.Map.remove queue id; used = String.Set.add used id })
   | None -> Error phrase_empty
 

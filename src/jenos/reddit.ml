@@ -36,6 +36,7 @@ module Post = struct
   type t = {
     id: string;
     title: string;
+    score: int;
     post_hint: Type.t option; [@default None]
     is_meta: bool;
     is_video: bool;
