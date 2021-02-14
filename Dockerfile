@@ -9,7 +9,7 @@ RUN opam update \
   && OPAMYES=1 opam install . --deps-only \
   && OPAMYES=1 opam upgrade
 
-RUN OPAMYES=1 opam pin add discord 'git+https://github.com/SGrondin/discord.git#ddad6b5'
+RUN OPAMYES=1 opam pin add discord 'git+https://github.com/SGrondin/discord.git#4f86474'
 
 COPY . .
 
