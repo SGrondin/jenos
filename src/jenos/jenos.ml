@@ -64,6 +64,10 @@ let create_bot config =
     | Received (Guild_create gc) ->
       let%lwt tracker = Track_vc.on_guild_create config vc_state gc in
       Lwt.return { state with vc_state = { vc_state with tracker } }
+    (* MESSAGE_UPDATE *)
+    | Received (Message_update message) ->
+      let%lwt curses_state = Send_curses.on_message_update config state.curses_state message in
+      Lwt.return { state with curses_state }
     (* MESSAGE_CREATE *)
     | Received (Message_create message) ->
       in_background ~on_exn (fun () ->

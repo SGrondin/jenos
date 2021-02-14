@@ -157,6 +157,17 @@ let send_curse ~token ~in_background ~channel_id ~now send_curses state =
 
 let regex_too_much = Regex.create "^[^a-z]*too much[^a-z]*$"
 
+let regex_reddit_image = Regex.create "i.redd.it/([a-z0-9]{5,})[.](?:jpg|png)$"
+
+let track_images state embeds =
+  let images =
+    List.filter_map embeds ~f:(fun Data.Embed.{ url; _ } ->
+        let open Option.Monad_infix in
+        url >>| Uri.to_string >>= Regex.exec regex_reddit_image >>| Fn.flip Array.get 1)
+  in
+  let used = List.fold images ~init:state.used ~f:String.Set.add in
+  Lwt.return { state with used }
+
 let on_message_create ~in_background { token; send_curses; _ } state = function
 | Data.Message.{ type_ = DEFAULT; channel_id; content; _ }
   when Data.Basics.Snowflake.equal channel_id send_curses.cursed_channel
@@ -179,6 +190,15 @@ let on_message_create ~in_background { token; send_curses; _ } state = function
   let* () = Rest.Channel.delete_message ~token ~channel_id ~message_id in
   let+ () = Lwt_io.printlf !"Removed this: %{sexp#mach: Data.Message.t}" original in
   state
+| Data.Message.{ type_ = DEFAULT; channel_id; embeds; _ }
+  when Data.Basics.Snowflake.equal channel_id send_curses.cursed_channel ->
+  track_images state embeds
+| _ -> Lwt.return state
+
+let on_message_update { send_curses; _ } state = function
+| Data.Message.Update.{ channel_id; embeds = Some embeds; _ }
+  when Data.Basics.Snowflake.equal channel_id send_curses.cursed_channel ->
+  track_images state embeds
 | _ -> Lwt.return state
 
 let%expect_test "Test curse capture" =
