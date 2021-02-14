@@ -73,6 +73,7 @@ let create_bot config =
               Make_meeting_poll.on_message_create config message;
               Add_reactions.on_message_create config message;
               Add_reactions_to_reply.on_message_create config message;
+              Parrot.on_message_create config message;
             ]);
       let%lwt curses_state =
         Send_curses.on_message_create ~in_background:(in_background ~on_exn) config state.curses_state

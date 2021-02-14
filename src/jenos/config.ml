@@ -11,6 +11,16 @@ module Add_reactions_config = struct
   type t = reaction list [@@deriving sexp, of_yojson]
 end
 
+module Parrot_config = struct
+  type words = {
+    matcher: Regex.Matcher.t;
+    say: string;
+  }
+  [@@deriving sexp, of_yojson]
+
+  type t = words list [@@deriving sexp, of_yojson]
+end
+
 module Track_vc_config = struct
   type thresholds = {
     p_common: int;
@@ -65,6 +75,7 @@ type t = {
   activity_type: Data.Activity.Type.t option; [@default None]
   activity_name: string option;
   add_reactions: Add_reactions_config.t;
+  parrot: Parrot_config.t;
   track_vc: Track_vc_config.t;
   send_curses: Send_curses_config.t;
   make_meeting_poll: Make_meeting_poll_config.t;

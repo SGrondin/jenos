@@ -31,10 +31,8 @@ module Matcher = struct
 
   let of_yojson : Yojson.Safe.t -> (t, string) result = function
   | `Assoc [ ("regex", j) ] -> [%of_yojson: Self.t] j
-  | `Assoc [ ("chars", j) ] ->
-    let open Result.Let_syntax in
-    let%bind chars = [%of_yojson: char list] j in
-    let word = List.map chars ~f:(sprintf {|(?:%c\s*?)+|}) |> String.concat in
+  | `Assoc [ ("word", `String word) ] ->
+    let word = String.to_array word |> Array.map ~f:(sprintf {|(?:%c\s*?)+|}) |> String.concat_array in
     Result.try_with (fun () -> Self.create (sprintf {|(?:[^a-z]|^)%s(?:[^a-z]|$)|} word))
     |> Result.map_error ~f:Exn.to_string
   | j -> failwithf "Invalid json for config matcher: %s" (Yojson.Safe.to_string j) ()
@@ -48,11 +46,9 @@ module Replacement = struct
   | j -> Error (sprintf "Invalid json for config matcher: %s" (Yojson.Safe.to_string j))
 end
 
-let%expect_test "Matcher of Yojson chars" =
+let%expect_test "Matcher of Yojson word" =
   let m =
-    Yojson.Safe.from_string {|{"chars": ["r","e","d","x"]}|}
-    |> [%of_yojson: Matcher.t]
-    |> Result.ok_or_failwith
+    Yojson.Safe.from_string {|{"word": "redx"}|} |> [%of_yojson: Matcher.t] |> Result.ok_or_failwith
   in
   [%sexp_of: Matcher.t] m |> Sexp.to_string_hum |> print_endline;
   [%expect {| "(?:[^a-z]|^)(?:r\\s*?)+(?:e\\s*?)+(?:d\\s*?)+(?:x\\s*?)+(?:[^a-z]|$)" |}];

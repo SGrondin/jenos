@@ -69,6 +69,7 @@ let fetch ~now subreddit =
       | {
           is_meta = false;
           is_video = false;
+          stickied = false;
           is_self = false;
           is_reddit_media_domain = true;
           link_flair_text = _;
