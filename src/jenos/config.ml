@@ -15,6 +15,7 @@ module Parrot_config = struct
   type words = {
     matcher: Regex.Matcher.t;
     say: string;
+    user_id: Basics.Snowflake.t option; [@default None]
   }
   [@@deriving sexp, of_yojson]
 

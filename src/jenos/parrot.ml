@@ -3,8 +3,11 @@ open Lwt.Syntax
 open Config
 
 let on_message_create { token; parrot; _ } = function
-| Data.Message.{ id = message_id; type_ = DEFAULT; channel_id; content; guild_id; _ } ->
-  List.find parrot ~f:(fun { matcher; _ } -> Regex.matching matcher content)
+| Data.Message.
+    { id = message_id; type_ = DEFAULT; channel_id; content; guild_id; author = { id = author; _ }; _ } ->
+  List.find parrot ~f:(fun { matcher; user_id; _ } ->
+      Option.value_map user_id ~default:true ~f:(Basics.Snowflake.equal author)
+      && Regex.matching matcher content)
   |> Option.value_map ~default:Lwt.return_unit ~f:(fun { say = content; _ } ->
          let message_reference : Data.Message.Reference.t =
            {
