@@ -1,10 +1,10 @@
-(executable
-  (name app)
+(library
+  (name paladins)
+  (inline_tests)
   (libraries
-    jenos
-    paladins
-
     core
+    cohttp-lwt-unix
+    discord.latch
     lwt
     ppx_deriving_yojson.runtime
   )
@@ -13,6 +13,6 @@
     lwt_ppx
     ppx_deriving_yojson
     ppx_deriving.enum
+    ppx_deriving.show
   ))
-  (modes exe)
 )

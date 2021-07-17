@@ -71,6 +71,14 @@ module Make_meeting_poll_config = struct
   type t = { poll_user_id: Basics.Snowflake.t } [@@deriving sexp, of_yojson] [@@unboxed]
 end
 
+module Paladins_api_config = struct
+  type t = {
+    dev_id: string;
+    auth_key: string;
+  }
+  [@@deriving sexp, of_yojson]
+end
+
 type t = {
   token: string;
   activity_type: Data.Activity.Type.t option; [@default None]
@@ -80,5 +88,6 @@ type t = {
   track_vc: Track_vc_config.t;
   send_curses: Send_curses_config.t;
   make_meeting_poll: Make_meeting_poll_config.t;
+  paladins_api: Paladins_api_config.t;
 }
 [@@deriving sexp, of_yojson]

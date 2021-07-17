@@ -61,7 +61,42 @@ let script =
   let open Command in
   let task () =
     let open Jenos__.Config in
-    let%lwt { token = _; _ } = get_config ~print:false "config.json" in
+    let module Snowflake = Discord.Data.Basics.Snowflake in
+    let sos = Snowflake.of_string in
+    let%lwt config = get_config ~print:false "config.json" in
+
+    Lwt.return_unit
+  in
+  basic ~summary:"" (Param.return (run_app task))
+
+let paladins_script =
+  let open Command in
+  let task () =
+    let open Jenos__.Config in
+    let%lwt { paladins_api = { dev_id; auth_key }; _ } = get_config ~print:false "config.json" in
+    let module Api = Paladins.Api.Make (struct
+      let dev_id = dev_id
+
+      let auth_key = auth_key
+    end) in
+    (* let player_id = Paladins.Types.Player_id.of_int 16115609 in
+       let match_id = Paladins.Types.Match_id.of_int 1094337415 in
+       let%lwt session =
+         Sys.getenv "SESSION" |> Option.value_map ~f:Lwt.return ~default:(Api.Session.get ())
+       in
+       let%lwt raw = Api.Match.get_match_details ~session ~match_id in
+       print_endline raw;
+       print_endline session; *)
+    let%lwt raw =
+      Lwt_io.with_file ~flags:Unix.[ O_RDONLY; O_NONBLOCK ] ~mode:Input "getmatchdetails.json" Lwt_io.read
+    in
+    let parsed =
+      raw
+      |> Yojson.Safe.from_string
+      |> [%of_yojson: Paladins.Match.Match_player.t]
+      |> Result.ok_or_failwith
+    in
+    parsed |> sprintf !"%{sexp: Paladins.Match.Match_player.t}" |> print_endline;
     Lwt.return_unit
   in
   basic ~summary:"" (Param.return (run_app task))
@@ -104,4 +139,7 @@ let bot =
   in
   basic ~summary:"" param
 
-let () = Command.run @@ Command.group ~summary:"" [ "script", script; "debug", debug; "bot", bot ]
+let () =
+  Command.run
+  @@ Command.group ~summary:""
+       [ "script", script; "paladins", paladins_script; "debug", debug; "bot", bot ]
