@@ -80,7 +80,7 @@ let fetch ~now subreddit =
           url;
           awards;
         }
-        when Option.value_map post_hint ~default:true ~f:(Reddit.Post.Type.equal Image) && score >= 100 ->
+        when Option.value_map post_hint ~default:true ~f:(Reddit.Post.Type.equal Image) && score >= 80 ->
         String.Map.set acc ~key:id ~data:{ title; url; awards; fetched_at = now; score }
       | _ -> acc)
   | status ->
@@ -101,7 +101,7 @@ let get_curse ~now { subreddits; phrase_empty; _ } ({ queue; used; _ } as state)
             String.Map.fold curses ~init ~f:(fun ~key ~data acc ->
                 if String.Set.mem used key then acc else String.Map.set acc ~key ~data))
         |> Result.return
-      | _, error_s :: _ -> Error error_s
+      | _, error_s :: _ -> Error (`Internal error_s)
     )
     | false -> Lwt_result.return queue
   in
@@ -109,12 +109,12 @@ let get_curse ~now { subreddits; phrase_empty; _ } ({ queue; used; _ } as state)
   match String.Map.min_elt queue with
   | Some (id, curse) ->
     Ok (curse, { state with queue = String.Map.remove queue id; used = String.Set.add used id })
-  | None -> Error phrase_empty
+  | None -> Error (`User_facing phrase_empty)
 
 let send_curse ~token ~in_background ~channel_id ~now send_curses state =
   let+ data = get_curse ~now send_curses state in
   match data with
-  | Error s ->
+  | Error (`Internal s) ->
     in_background (fun () ->
         let* () = Lwt_io.printlf "❌ Curse error: %s" s in
         let* () = Latch.wait_and_trigger delay_latch in
@@ -122,6 +122,12 @@ let send_curse ~token ~in_background ~channel_id ~now send_curses state =
           Rest.Channel.create_message ~token ~channel_id
             ~content:"Something bad happened, please try again in a minute" ()
         in
+        ());
+    state
+  | Error (`User_facing s) ->
+    in_background (fun () ->
+        let* () = Latch.wait_and_trigger delay_latch in
+        let+ _msg = Rest.Channel.create_message ~token ~channel_id ~content:s () in
         ());
     state
   | Ok (curse, state) ->
