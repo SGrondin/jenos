@@ -71,6 +71,27 @@ module Make_meeting_poll_config = struct
   type t = { poll_user_id: Basics.Snowflake.t } [@@deriving sexp, of_yojson] [@@unboxed]
 end
 
+module Role_react = struct
+  type grant = {
+    emoji: string;
+    role_id: Basics.Snowflake.t;
+  }
+  [@@deriving sexp, of_yojson]
+
+  let grants_map_of_yojson json =
+    let open Result.Monad_infix in
+    [%of_yojson: grant list] json
+    >>| List.fold ~init:String.Map.empty ~f:(fun acc { emoji = key; role_id = data } ->
+            String.Map.set acc ~key ~data)
+
+  type t = {
+    channel_id: Basics.Snowflake.t;
+    from_user_id: Basics.Snowflake.t;
+    grants: Basics.Snowflake.t String.Map.t; [@of_yojson grants_map_of_yojson]
+  }
+  [@@deriving sexp, of_yojson]
+end
+
 module Paladins_api_config = struct
   type t = {
     dev_id: string;
@@ -88,6 +109,7 @@ type t = {
   track_vc: Track_vc_config.t;
   send_curses: Send_curses_config.t;
   make_meeting_poll: Make_meeting_poll_config.t;
+  role_react: Role_react.t;
   paladins_api: Paladins_api_config.t;
 }
 [@@deriving sexp, of_yojson]

@@ -84,19 +84,18 @@ let create_bot config =
           message
       in
       Lwt.return { state with curses_state }
+    | Received (Message_reaction_add event) ->
+      in_background ~on_exn (fun () -> Manage_react_roles.on_message_reaction config (`Add event));
+      Lwt.return state
+    | Received (Message_reaction_remove event) ->
+      in_background ~on_exn (fun () -> Manage_react_roles.on_message_reaction config (`Remove event));
+      Lwt.return state
+    | Received (Message_reaction_remove_emoji event) ->
+      in_background ~on_exn (fun () ->
+          Manage_react_roles.on_message_reaction config (`Remove_emoji event));
+      Lwt.return state
     (* | Payload ({ op = Dispatch; _ } as payload) -> *)
     (* Lwt_io.printl ([%sexp_of: Data.Payload.t] payload |> Sexp.to_string_hum) >>> state *)
-    (* Re-test *)
-    | Received (Invite_create x) ->
-      Lwt_io.printlf "Invite_create!!! %s"
-        ([%sexp_of: Data.Events.Invite_create.t] x |> Sexp.to_string_hum)
-      >>> state
-    | Received (Invite_delete x) ->
-      Lwt_io.printlf "Invite_delete!!! %s"
-        ([%sexp_of: Data.Events.Invite_delete.t] x |> Sexp.to_string_hum)
-      >>> state
-    (* Testing *)
-    (* Other events *)
     | _ -> Lwt.return state
   end) in
   Bot.start

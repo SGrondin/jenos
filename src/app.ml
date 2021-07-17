@@ -63,8 +63,10 @@ let script =
     let open Jenos__.Config in
     let module Snowflake = Discord.Data.Basics.Snowflake in
     let sos = Snowflake.of_string in
-    let%lwt config = get_config ~print:false "config.json" in
-
+    let%lwt { token; _ } = get_config ~print:false "config.json" in
+    let guild_id = sos "448249875805634572" in
+    let%lwt roles = Discord.Rest.Guild.get_guild_roles ~token ~guild_id in
+    print_endline (sprintf !"%{sexp: Data.Role.t list}" roles);
     Lwt.return_unit
   in
   basic ~summary:"" (Param.return (run_app task))
@@ -126,7 +128,7 @@ let bot =
     let login =
       Discord.Login.(
         create ~token
-          ~intents:[ GUILDS; GUILD_VOICE_STATES; GUILD_MESSAGES ]
+          ~intents:[ GUILDS; GUILD_VOICE_STATES; GUILD_MESSAGES; GUILD_MESSAGE_REACTIONS ]
           ?activity_name ?activity_type ())
     in
     let p, stop = Jenos.create_bot config login in
