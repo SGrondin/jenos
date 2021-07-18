@@ -8,6 +8,8 @@ let ( >>> ) f x = Lwt.Infix.(f >>= fun () -> x)
 
 module SMap = Basics.Snowflake.Map
 
+let mutex = Lwt_mutex.create ()
+
 let apply_roles ~token ~channel_id ~message_id ~emoji ~guild_id ~role_id =
   let* must_have =
     let+ users = Rest.Channel.get_reactions ~token ~channel_id ~message_id ~emoji in
@@ -48,7 +50,8 @@ let on_message_reaction { token; role_react; _ } : t -> unit Lwt.t = function
     let* message = Rest.Channel.get_channel_message ~token ~channel_id ~message_id in
     match message with
     | { author = { id = author_id; _ }; _ } when author_id *= role_react.from_user_id ->
-      apply_roles ~token ~channel_id ~message_id ~emoji:(`Unicode_emoji emoji) ~guild_id ~role_id
+      Lwt_mutex.with_lock mutex (fun () ->
+          apply_roles ~token ~channel_id ~message_id ~emoji:(`Unicode_emoji emoji) ~guild_id ~role_id)
     | _ -> Lwt.return_unit
   )
 )
