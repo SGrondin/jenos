@@ -143,8 +143,8 @@ let draft_n n =
       champions = Champion.Set.remove state.champions pick;
     }
   in
-  Array.create ~len:(n - 4) Any
-  |> Array.append [| Support; Support; Frontline; Frontline |]
+  Array.create ~len:(n - 5) Any
+  |> Array.append [| Support; Support; Support; Frontline; Frontline |]
   |> Array.fold ~f:draft
        ~init:
          {
